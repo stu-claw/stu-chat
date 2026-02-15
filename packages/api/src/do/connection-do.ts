@@ -1,5 +1,5 @@
 import type { Env } from "../env.js";
-import { verifyToken, getJwtSecret } from "../utils/auth.js";
+import { verifyToken, getJwtSecret, signMediaUrl } from "../utils/auth.js";
 import { generateId as generateIdUtil } from "../utils/id.js";
 import { randomUUID } from "../utils/uuid.js";
 
@@ -685,13 +685,32 @@ export class ConnectionDO implements DurableObject {
         httpMetadata: { contentType },
       });
 
-      const localUrl = `/api/media/${key.replace("media/", "")}`;
+      // Sign the cached media URL so the browser can fetch it without Bearer auth.
+      // key is "media/{userId}/{filename}" — extract just the filename part.
+      const cachedFilename = key.replace(`media/${userId}/`, "");
+      const secret = getJwtSecret(this.env);
+      const localUrl = await signMediaUrl(userId, cachedFilename, secret, 3600);
       console.log(`[DO] cacheExternalMedia: OK ${url.slice(0, 80)} → ${localUrl} (${body.byteLength} bytes)`);
       return localUrl;
     } catch (err) {
       console.error(`[DO] cacheExternalMedia: FAILED for ${url.slice(0, 120)}: ${err}`);
       return null;
     }
+  }
+
+  /**
+   * Re-sign a media URL with a fresh signature. Handles both relative
+   * (/api/media/...) and absolute (https://host/api/media/...) URLs.
+   * Returns a freshly signed relative URL, or the original if not a media URL.
+   */
+  private async refreshMediaUrl(url: string, secret: string): Promise<string> {
+    // Extract userId and filename from /api/media/:userId/:filename patterns
+    const match = url.match(/\/api\/media\/([^/?]+)\/([^?]+)/);
+    if (!match) return url; // Not a media URL — return as-is
+
+    const userId = decodeURIComponent(match[1]);
+    const filename = decodeURIComponent(match[2]);
+    return signMediaUrl(userId, filename, secret, 3600);
   }
 
   // ---- Message persistence ----
@@ -785,16 +804,27 @@ export class ConnectionDO implements DurableObject {
         }
       }
 
-      const messages = (result.results ?? []).map((row: Record<string, unknown>) => ({
-        id: row.id,
-        sender: row.sender,
-        text: row.text ?? "",
-        timestamp: ((row.created_at as number) ?? 0) * 1000, // unix seconds → ms
-        mediaUrl: row.media_url ?? undefined,
-        a2ui: row.a2ui ?? undefined,
-        threadId: row.thread_id ?? undefined,
-        encrypted: row.encrypted ?? 0,
-      }));
+      // Re-sign media URLs so they're always fresh when loading history.
+      // Stored URLs may have expired signatures or no signature at all.
+      const secret = getJwtSecret(this.env);
+      const messages = await Promise.all(
+        (result.results ?? []).map(async (row: Record<string, unknown>) => {
+          let mediaUrl = (row.media_url as string | null) ?? undefined;
+          if (mediaUrl) {
+            mediaUrl = await this.refreshMediaUrl(mediaUrl, secret);
+          }
+          return {
+            id: row.id,
+            sender: row.sender,
+            text: row.text ?? "",
+            timestamp: ((row.created_at as number) ?? 0) * 1000, // unix seconds → ms
+            mediaUrl,
+            a2ui: row.a2ui ?? undefined,
+            threadId: row.thread_id ?? undefined,
+            encrypted: row.encrypted ?? 0,
+          };
+        }),
+      );
 
       return Response.json({ messages, replyCounts });
     } catch (err) {
