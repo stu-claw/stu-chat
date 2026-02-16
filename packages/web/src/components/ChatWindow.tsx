@@ -7,6 +7,7 @@ import { SessionTabs } from "./SessionTabs";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { dlog } from "../debug-log";
 import { randomUUID } from "../utils/uuid";
+import { E2eService } from "../e2e";
 
 type ChatWindowProps = {
   sendMessage: (msg: WSMessage) => void;
@@ -282,11 +283,26 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
     }
   }, [pendingImage]);
 
-  const uploadImage = useCallback(async (file: File): Promise<string | null> => {
-    const formData = new FormData();
-    formData.append("file", file);
+  /**
+   * Upload a file — if E2E is enabled, encrypts the binary before uploading.
+   * Returns { url, mediaContextId? } or null on failure.
+   */
+  const uploadFile = useCallback(async (file: File, mediaContextId?: string): Promise<{ url: string } | null> => {
     const token = localStorage.getItem("botschat_token");
     try {
+      let uploadBlob: Blob = file;
+
+      // E2E: encrypt file content before uploading
+      if (E2eService.hasKey() && mediaContextId) {
+        const arrayBuf = await file.arrayBuffer();
+        const plainBytes = new Uint8Array(arrayBuf);
+        const { encrypted } = await E2eService.encryptMedia(plainBytes, mediaContextId);
+        uploadBlob = new Blob([encrypted.buffer.slice(0) as ArrayBuffer], { type: file.type });
+        dlog.info("E2E", `Encrypted media (${plainBytes.length} bytes, ctx=${mediaContextId.slice(0, 8)}…)`);
+      }
+
+      const formData = new FormData();
+      formData.append("file", uploadBlob, file.name);
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -297,13 +313,12 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
         throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`);
       }
       const data = await res.json() as { url: string };
-      // Return absolute URL so OpenClaw on mini.local can fetch the image
       const absoluteUrl = data.url.startsWith("/")
         ? `${window.location.origin}${data.url}`
         : data.url;
-      return absoluteUrl;
+      return { url: absoluteUrl };
     } catch (err) {
-      dlog.error("Upload", `Image upload failed: ${err}`);
+      dlog.error("Upload", `File upload failed: ${err}`);
       return null;
     }
   }, []);
@@ -366,6 +381,11 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
   const handleSend = async () => {
     if ((!input.trim() && !pendingImage) || !sessionKey) return;
 
+    // Warn if OpenClaw is offline (but don't block — connection may recover)
+    if (!state.openclawConnected) {
+      dlog.warn("Chat", "Sending while OpenClaw appears offline — message will be delivered when reconnected");
+    }
+
     // Prepend quoted message as Markdown blockquote
     const rawTrimmed = input.trim();
     const trimmed = quotedMessage
@@ -381,19 +401,23 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
       setSkillVersion((v) => v + 1);
     }
 
-    // Upload image if present
+    // Generate message ID upfront so we can use it as E2E context for both text and media
+    const msgId = randomUUID();
+
+    // Upload file if present
     let mediaUrl: string | undefined;
     if (pendingImage) {
       setImageUploading(true);
-      const url = await uploadImage(pendingImage.file);
+      // Use "{msgId}:media" as E2E context for the binary — distinct from text context
+      const result = await uploadFile(pendingImage.file, `${msgId}:media`);
       setImageUploading(false);
-      if (!url) return; // Upload failed
-      mediaUrl = url;
+      if (!result) return; // Upload failed
+      mediaUrl = result.url;
       clearPendingImage();
     }
 
     const msg: ChatMessage = {
-      id: randomUUID(),
+      id: msgId,
       sender: "user",
       text: trimmed,
       timestamp: Date.now(),
@@ -810,14 +834,14 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 rounded hover:bg-[--bg-hover] transition-colors"
-                style={{ color: "var(--text-muted)" }}
-                title="Upload image"
-                aria-label="Upload image"
+                className="p-1.5 rounded hover:bg-[--bg-hover] transition-colors flex items-center gap-1"
+                style={{ color: "var(--text-secondary)" }}
+                title="Attach file"
+                aria-label="Attach file"
                 disabled={!state.openclawConnected}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v13.5A1.5 1.5 0 003.75 21zm14.25-15.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
                 </svg>
               </button>
             </div>
@@ -842,7 +866,7 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
             ) : (
               <button
                 onClick={handleSend}
-                disabled={(!input.trim() && !pendingImage) || !state.openclawConnected}
+                disabled={!input.trim() && !pendingImage}
                 className="px-3 py-1.5 rounded-sm text-caption font-bold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 style={{ background: "var(--bg-active)" }}
               >
@@ -954,6 +978,8 @@ function MessageRow({
           <MessageContent
             text={msg.text}
             mediaUrl={msg.mediaUrl}
+            messageId={msg.id}
+            encrypted={!!msg.mediaUrl && E2eService.hasKey()}
             a2ui={msg.a2ui}
             isStreaming={msg.isStreaming}
             onAction={onAction}

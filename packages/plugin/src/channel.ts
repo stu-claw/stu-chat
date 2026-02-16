@@ -9,7 +9,7 @@ import { getBotsChatRuntime } from "./runtime.js";
 import type { BotsChatChannelConfig, CloudInbound, ResolvedBotsChatAccount } from "./types.js";
 import { BotsChatCloudClient } from "./ws-client.js";
 import crypto from "crypto";
-import { encryptText, decryptText, toBase64, fromBase64 } from "./e2e-crypto.js";
+import { encryptText, decryptText, decryptBytes, toBase64, fromBase64 } from "./e2e-crypto.js";
 
 // ---------------------------------------------------------------------------
 // A2UI message-tool hints — injected via agentPrompt.messageToolHints so
@@ -496,8 +496,21 @@ async function handleCloudMessage(
             ctx.log?.info(`[${ctx.accountId}] Downloading media from ${resolvedUrl}`);
             const resp = await fetch(resolvedUrl);
             if (resp.ok) {
-              const buffer = Buffer.from(await resp.arrayBuffer());
+              let buffer = Buffer.from(await resp.arrayBuffer());
               const contentType = resp.headers.get("content-type") || "image/png";
+
+              // E2E: decrypt media if the message was encrypted
+              if ((msg as any).encrypted && client?.e2eKey && msg.messageId) {
+                try {
+                  const mediaCtx = `${msg.messageId}:media`;
+                  const decrypted = await decryptBytes(client.e2eKey, new Uint8Array(buffer), mediaCtx);
+                  buffer = Buffer.from(decrypted);
+                  ctx.log?.info(`[${ctx.accountId}] E2E decrypted media (${buffer.length} bytes, ctx=${mediaCtx.slice(0, 12)}…)`);
+                } catch (e2eErr) {
+                  ctx.log?.warn?.(`[${ctx.accountId}] E2E media decryption failed (using raw): ${e2eErr}`);
+                }
+              }
+
               const extMap: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp" };
               const ext = extMap[contentType] || ".png";
               const fileName = `botschat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;

@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
+import { E2eService } from "../e2e";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -25,6 +26,10 @@ type ParsedAction = {
 type MessageContentProps = {
   text: string;
   mediaUrl?: string;
+  /** Message ID — used to derive E2E decryption context as "{messageId}:media" */
+  messageId?: string;
+  /** Whether this message was E2E encrypted (media binary may also be encrypted) */
+  encrypted?: boolean;
   a2ui?: string;
   className?: string;
   isStreaming?: boolean;
@@ -938,6 +943,8 @@ function ActionBlockPlaceholder() {
 export function MessageContent({
   text,
   mediaUrl,
+  messageId,
+  encrypted,
   a2ui,
   className = "",
   isStreaming,
@@ -965,7 +972,7 @@ export function MessageContent({
       {/* Media preview */}
       {mediaUrl && (
         <div className="mb-2">
-          <MediaPreview url={mediaUrl} />
+          <MediaPreview url={mediaUrl} mediaContextId={encrypted && messageId ? `${messageId}:media` : undefined} />
         </div>
       )}
 
@@ -1009,8 +1016,61 @@ export function MessageContent({
 // Media preview — handles images, audio, video, and file downloads
 // ---------------------------------------------------------------------------
 
-function MediaPreview({ url }: { url: string }) {
+/**
+ * MediaPreview — renders images, audio, video, and files.
+ * If mediaContextId is provided and E2E key is available, fetches the media,
+ * decrypts it client-side, and renders a local object URL.
+ */
+function MediaPreview({ url, mediaContextId }: { url: string; mediaContextId?: string }) {
+  const [decryptedUrl, setDecryptedUrl] = useState<string | null>(null);
+  const [decrypting, setDecrypting] = useState(false);
+
+  useEffect(() => {
+    if (!mediaContextId || !E2eService.hasKey()) {
+      setDecryptedUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    setDecrypting(true);
+
+    (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const encrypted = new Uint8Array(await res.arrayBuffer());
+        const decrypted = await E2eService.decryptMedia(encrypted, mediaContextId);
+        if (!cancelled) {
+          const blob = new Blob([decrypted.buffer.slice(0) as ArrayBuffer]);
+          setDecryptedUrl(URL.createObjectURL(blob));
+        }
+      } catch (err) {
+        console.warn("[E2E] Media decryption failed, falling back to direct URL:", err);
+        if (!cancelled) setDecryptedUrl(null);
+      } finally {
+        if (!cancelled) setDecrypting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (decryptedUrl) URL.revokeObjectURL(decryptedUrl);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, mediaContextId]);
+
+  // Use decrypted URL if available, otherwise fall back to direct URL
+  const effectiveUrl = decryptedUrl || url;
   const ext = url.split(".").pop()?.toLowerCase().split("?")[0] ?? "";
+
+  if (decrypting) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-md max-w-[360px]"
+        style={{ background: "var(--bg-hover)", border: "1px solid var(--border)" }}>
+        <span className="text-caption" style={{ color: "var(--text-muted)" }}>Decrypting media...</span>
+      </div>
+    );
+  }
 
   // Audio
   if (["mp3", "wav", "ogg", "m4a", "aac", "webm"].includes(ext)) {
@@ -1023,7 +1083,7 @@ function MediaPreview({ url }: { url: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
         </svg>
         <audio controls className="flex-1 h-8" style={{ maxWidth: 280 }}>
-          <source src={url} />
+          <source src={effectiveUrl} />
         </audio>
       </div>
     );
@@ -1037,7 +1097,7 @@ function MediaPreview({ url }: { url: string }) {
         className="max-w-[360px] max-h-64 rounded-md"
         style={{ border: "1px solid var(--border)" }}
       >
-        <source src={url} />
+        <source src={effectiveUrl} />
       </video>
     );
   }
@@ -1047,7 +1107,7 @@ function MediaPreview({ url }: { url: string }) {
     const filename = url.split("/").pop()?.split("?")[0] ?? "file";
     return (
       <a
-        href={url}
+        href={effectiveUrl}
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-3 px-3 py-2.5 rounded-md max-w-[360px] hover:opacity-90 transition-opacity"
@@ -1074,11 +1134,11 @@ function MediaPreview({ url }: { url: string }) {
   // Default: image
   return (
     <img
-      src={url}
+      src={effectiveUrl}
       alt=""
       className="max-w-[360px] max-h-64 rounded-md object-contain cursor-pointer hover:opacity-90 transition-opacity"
       style={{ border: "1px solid var(--border)" }}
-      onClick={() => window.open(url, "_blank")}
+      onClick={() => window.open(effectiveUrl, "_blank")}
     />
   );
 }

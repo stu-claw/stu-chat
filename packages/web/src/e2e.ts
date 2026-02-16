@@ -1,4 +1,4 @@
-import { deriveKey, encryptText, decryptText, toBase64, fromBase64 } from "e2e-crypto";
+import { deriveKey, encryptText, decryptText, encryptBytes, decryptBytes, toBase64, fromBase64 } from "e2e-crypto";
 
 const STORAGE_KEY = "botschat_e2e_pwd_cache";
 const KEY_CACHE_KEY = "botschat_e2e_key_cache"; // base64-encoded derived key
@@ -136,9 +136,29 @@ export const E2eService = {
   },
 
   /**
+   * Encrypt raw binary data (e.g., an image file).
+   * Returns { encrypted: Uint8Array, contextId: string }.
+   * The encrypted data is the same length as the input (AES-CTR, no padding).
+   */
+  async encryptMedia(data: Uint8Array, contextId?: string): Promise<{ encrypted: Uint8Array; contextId: string }> {
+    if (!currentKey) throw new Error("E2E key not set");
+    const cid = contextId || crypto.randomUUID();
+    const encrypted = await encryptBytes(currentKey, data, cid);
+    return { encrypted, contextId: cid };
+  },
+
+  /**
+   * Decrypt raw binary data (e.g., an encrypted image).
+   */
+  async decryptMedia(encrypted: Uint8Array, contextId: string): Promise<Uint8Array> {
+    if (!currentKey) throw new Error("E2E key not set");
+    return decryptBytes(currentKey, encrypted, contextId);
+  },
+
+  /**
    * Decrypt bytes (base64) -> Uint8Array.
    */
-  async decryptBytes(ciphertextBase64: string, messageId: string): Promise<Uint8Array> {
+  async decryptBytesLegacy(ciphertextBase64: string, messageId: string): Promise<Uint8Array> {
     if (!currentKey) throw new Error("E2E key not set");
     const ciphertext = fromBase64(ciphertextBase64);
     const plainStr = await decryptText(currentKey, ciphertext, messageId);

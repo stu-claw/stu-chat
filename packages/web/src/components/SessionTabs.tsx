@@ -182,7 +182,7 @@ export function SessionTabs({ channelId }: SessionTabsProps) {
     } catch (err) {
       dlog.error("Session", `Failed to create session: ${err}`);
     }
-  }, [channelId, dispatch]);
+  }, [channelId, sessions, dispatch]);
 
   const handleDelete = useCallback(
     async (sessionId: string) => {
