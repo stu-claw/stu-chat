@@ -14,12 +14,12 @@ devAuth.post("/login", async (c) => {
     return c.json({ error: "Not found" }, 404);
   }
 
-  const { secret } = await c.req.json<{ secret: string }>();
+  const { secret, userId: requestedUserId } = await c.req.json<{ secret: string; userId?: string }>();
   if (!secret || secret !== devSecret) {
     return c.json({ error: "Forbidden" }, 403);
   }
 
-  const userId = "dev-test-user";
+  const userId = requestedUserId || "dev-test-user";
   const jwtSecret = getJwtSecret(c.env);
   const token = await createToken(userId, jwtSecret);
 

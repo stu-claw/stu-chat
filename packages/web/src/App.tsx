@@ -127,12 +127,13 @@ export default function App() {
     // Dev-token auth bypass: ?dev_token=xxx in URL
     const params = new URLSearchParams(window.location.search);
     const devToken = params.get("dev_token");
+    const devUser = params.get("dev_user");
     if (devToken) {
       dlog.info("Auth", "Dev-token login attempt");
       fetch("/api/dev-auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret: devToken }),
+        body: JSON.stringify({ secret: devToken, ...(devUser ? { userId: devUser } : {}) }),
       })
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -142,10 +143,11 @@ export default function App() {
           setToken(res.token);
           dispatch({
             type: "SET_USER",
-            user: { id: res.userId, email: "dev@botschat.test", displayName: "Dev User" },
+            user: { id: res.userId, email: devUser ? "auxtenwpc@gmail.com" : "dev@botschat.test", displayName: devUser ? "Auxten Wang" : "Dev User" },
           });
-          // Remove dev_token from URL
+          // Remove dev_token and dev_user from URL
           params.delete("dev_token");
+          params.delete("dev_user");
           const clean = params.toString();
           window.history.replaceState({}, "", window.location.pathname + (clean ? `?${clean}` : ""));
           dlog.info("Auth", `Dev-token login success: ${res.userId}`);
