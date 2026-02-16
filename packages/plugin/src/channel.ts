@@ -438,6 +438,7 @@ async function handleCloudMessage(
       }
 
       ctx.log?.info(`[${ctx.accountId}] Message from ${msg.userId}: ${text.slice(0, 80)}${msg.mediaUrl ? " [+image]" : ""}`);
+      console.error(`[botschat-msg] from=${msg.userId} text=${text.slice(0,40)} mediaUrl=${msg.mediaUrl ?? "none"}`);
 
       try {
         const runtime = getBotsChatRuntime();
@@ -475,6 +476,45 @@ async function handleCloudMessage(
           ctx.log?.info(`[${ctx.accountId}] Thread parent context injected (${parentText.length} chars)`);
         }
 
+        // Download inbound media (if any) to a local path so OpenClaw's
+        // vision pipeline can attach it to the model (requires MediaPath).
+        console.error(`[botschat-media] mediaUrl=${msg.mediaUrl ?? "none"}`);
+        if (msg.mediaUrl) {
+          let resolvedUrl = msg.mediaUrl;
+          if (resolvedUrl.startsWith("/")) {
+            const baseUrl = cloudUrls.get(ctx.accountId);
+            if (baseUrl) {
+              resolvedUrl = baseUrl.replace(/\/$/, "") + resolvedUrl;
+            }
+          }
+          try {
+            const os = await import("os");
+            const fsM = await import("fs");
+            const pathM = await import("path");
+            const mediaDir = pathM.join(os.homedir(), ".openclaw", "media", "inbound");
+            await fsM.promises.mkdir(mediaDir, { recursive: true });
+            ctx.log?.info(`[${ctx.accountId}] Downloading media from ${resolvedUrl}`);
+            const resp = await fetch(resolvedUrl);
+            if (resp.ok) {
+              const buffer = Buffer.from(await resp.arrayBuffer());
+              const contentType = resp.headers.get("content-type") || "image/png";
+              const extMap: Record<string, string> = { "image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp" };
+              const ext = extMap[contentType] || ".png";
+              const fileName = `botschat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+              const filePath = pathM.join(mediaDir, fileName);
+              await fsM.promises.writeFile(filePath, buffer);
+              ctx.log?.info(`[${ctx.accountId}] Downloaded media to ${filePath} (${buffer.length} bytes, ${contentType})`);
+              (msg as any).__resolvedMedia = { MediaUrl: resolvedUrl, MediaPath: filePath, MediaType: contentType, NumMedia: "1" };
+            } else {
+              ctx.log?.error(`[${ctx.accountId}] Failed to download media: HTTP ${resp.status}`);
+              (msg as any).__resolvedMedia = { MediaUrl: resolvedUrl, NumMedia: "1" };
+            }
+          } catch (err) {
+            ctx.log?.error(`[${ctx.accountId}] Failed to download media: ${err}`);
+            (msg as any).__resolvedMedia = { MediaUrl: msg.mediaUrl, NumMedia: "1" };
+          }
+        }
+
         // Build the MsgContext that OpenClaw's dispatch pipeline expects.
         // BotsChat users are authenticated (logged in via the web UI), so
         // mark commands as authorized — this lets directives like /model
@@ -501,19 +541,9 @@ async function handleCloudMessage(
           // Inject parent message as GroupSystemPrompt for thread context.
           ...(parentContext ? { GroupSystemPrompt: parentContext } : {}),
           ...(threadId ? { MessageThreadId: threadId, ReplyToId: threadId } : {}),
-          // Include image URL if the user sent an image.
-          // Resolve relative URLs (e.g. /api/media/...) to absolute using cloudUrl
-          // so OpenClaw can fetch the image from the BotsChat cloud.
-          ...(msg.mediaUrl ? (() => {
-            let resolvedUrl = msg.mediaUrl;
-            if (resolvedUrl.startsWith("/")) {
-              const baseUrl = cloudUrls.get(ctx.accountId);
-              if (baseUrl) {
-                resolvedUrl = baseUrl.replace(/\/$/, "") + resolvedUrl;
-              }
-            }
-            return { MediaUrl: resolvedUrl, NumMedia: "1" };
-          })() : {}),
+          // Include image: download to local path so OpenClaw vision pipeline
+          // can attach it to the model request (requires MediaPath).
+          ...((msg as any).__resolvedMedia || {}),
         };
 
         // Finalize the context (normalizes fields, resolves agent route)
