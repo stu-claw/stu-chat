@@ -563,7 +563,7 @@ async function handleCloudMessage(
         const finalizedCtx = runtime.channel.reply.finalizeInboundContext(msgCtx);
 
       // Create a reply dispatcher that sends responses back through the cloud WSS
-      const client = getCloudClient(ctx.accountId);
+      // NOTE: reuses `client` from line ~424 (same block scope, same value)
       console.log(`[botschat] client for accountId=${ctx.accountId}: connected=${client?.connected}`);
       const deliver = async (payload: { text?: string; mediaUrl?: string }) => {
         console.log(`[botschat][deliver] called, connected=${client?.connected}, hasKey=${!!client?.e2eKey}, textLen=${(payload.text || "").length}`);
