@@ -95,12 +95,14 @@ async function ensureNativeGoogleInit(): Promise<void> {
 
   const iosClientId = import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID as string | undefined;
   const webClientId = import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID as string | undefined;
+  const platform = Capacitor.getPlatform();
 
-  console.log("[NativeGoogleSignIn] initialize: iOSClientId =", iosClientId?.substring(0, 20) + "...", "webClientId =", webClientId?.substring(0, 20) + "...");
+  console.log("[NativeGoogleSignIn] initialize: platform =", platform, "iOSClientId =", iosClientId?.substring(0, 20) + "...", "webClientId =", webClientId?.substring(0, 20) + "...");
 
   await withTimeout(
     SocialLogin.initialize({
       google: {
+        webClientId: webClientId || undefined,
         iOSClientId: iosClientId || undefined,
         iOSServerClientId: webClientId || undefined,
       },

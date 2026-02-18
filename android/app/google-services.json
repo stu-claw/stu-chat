@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "670756745871",
+    "project_id": "botschat-130ff",
+    "storage_bucket": "botschat-130ff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:670756745871:android:7199e8f9db1b33786276fa",
+        "android_client_info": {
+          "package_name": "app.botschat.console"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "670756745871-1anrnjukhhu0a550j86blm771a2k3jou.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfcbU5yx92E8nN7lk0f1FLf0g30KExLX4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "670756745871-1anrnjukhhu0a550j86blm771a2k3jou.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "670756745871-ct1k370fk3h5oj3f3gdabqv1nq2b7r54.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.botschat.console"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
