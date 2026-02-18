@@ -155,11 +155,6 @@ async function handleFirebaseAuth(c: {
     return c.json({ error: msg }, 401);
   }
 
-  const email = firebaseUser.email?.toLowerCase();
-  if (!email) {
-    return c.json({ error: "Account has no email address" }, 400);
-  }
-
   const firebaseUid = firebaseUser.sub;
   // Determine provider from Firebase token (google.com, github.com, etc.)
   const signInProvider = firebaseUser.firebase?.sign_in_provider ?? "unknown";
@@ -167,7 +162,21 @@ async function handleFirebaseAuth(c: {
     ? "google"
     : signInProvider.includes("github")
       ? "github"
-      : signInProvider;
+      : signInProvider.includes("apple")
+        ? "apple"
+        : signInProvider;
+
+  // Apple Sign-In may hide the user's real email; generate a short placeholder
+  let email = firebaseUser.email?.toLowerCase() || null;
+  if (!email && authProvider === "apple") {
+    const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(firebaseUid))))
+      .slice(0, 6).map(b => b.toString(16).padStart(2, "0")).join("");
+    email = `apple_${hash}@privaterelay.appleid.com`;
+  }
+  if (!email) {
+    return c.json({ error: "Account has no email address" }, 400);
+  }
+
   const displayName = firebaseUser.name ?? email.split("@")[0];
 
   // 2. Look up existing user by firebase_uid first, then by email
@@ -241,6 +250,7 @@ async function handleFirebaseAuth(c: {
 auth.post("/firebase", (c) => handleFirebaseAuth(c));
 auth.post("/google", (c) => handleFirebaseAuth(c));
 auth.post("/github", (c) => handleFirebaseAuth(c));
+auth.post("/apple", (c) => handleFirebaseAuth(c));
 
 /**
  * POST /api/auth/dev-login — development-only passwordless login by email.
@@ -307,6 +317,7 @@ auth.get("/config", (c) => {
     emailEnabled: isDev,
     googleEnabled: !!c.env.FIREBASE_PROJECT_ID,
     githubEnabled: !!c.env.FIREBASE_PROJECT_ID,
+    appleEnabled: !!c.env.FIREBASE_PROJECT_ID,
   });
 });
 
@@ -340,6 +351,28 @@ auth.get("/me", async (c) => {
     settings,
     createdAt: row.created_at,
   });
+});
+
+/** DELETE /api/auth/account — permanently delete the authenticated user's account and all data */
+auth.delete("/account", async (c) => {
+  const userId = c.get("userId" as never) as string;
+  if (!userId) return c.json({ error: "Unauthorized" }, 401);
+
+  // Delete all user media from R2
+  const prefix = `${userId}/`;
+  let cursor: string | undefined;
+  do {
+    const listed = await c.env.MEDIA.list({ prefix, cursor });
+    if (listed.objects.length > 0) {
+      await Promise.all(listed.objects.map(obj => c.env.MEDIA.delete(obj.key)));
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+
+  // Delete user record — all related tables use ON DELETE CASCADE
+  await c.env.DB.prepare("DELETE FROM users WHERE id = ?").bind(userId).run();
+
+  return c.json({ ok: true });
 });
 
 export { auth };

@@ -44,3 +44,6 @@ ios/DerivedData/
 *.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 *.hmap
 *.ipa
+
+# Apple Sign in with Apple private keys
+*.p8

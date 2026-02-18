@@ -19,9 +19,11 @@ import { ChatWindow } from "./components/ChatWindow";
 import { ThreadPanel } from "./components/ThreadPanel";
 import { JobList } from "./components/JobList";
 import { LoginPage } from "./components/LoginPage";
+import { DataConsentModal } from "./components/DataConsentModal";
 import { OnboardingPage } from "./components/OnboardingPage";
 import { ConnectionSettings } from "./components/ConnectionSettings";
 import { E2ESettings } from "./components/E2ESettings";
+import { AccountSettings } from "./components/AccountSettings";
 import { DebugLogPanel } from "./components/DebugLogPanel";
 import { CronSidebar } from "./components/CronSidebar";
 import { CronDetail } from "./components/CronDetail";
@@ -64,6 +66,15 @@ export default function App() {
   const isMobile = useIsMobile();
   const mainLayout = useDefaultLayout({ id: "botschat-main" });
   const contentLayout = useDefaultLayout({ id: "botschat-content" });
+
+  const [dataConsentGiven, setDataConsentGiven] = useState(() => {
+    return localStorage.getItem("botschat_data_consent") === "1";
+  });
+
+  const handleDataConsent = useCallback(() => {
+    setDataConsentGiven(true);
+    localStorage.setItem("botschat_data_consent", "1");
+  }, []);
 
   // Onboarding: show setup page for new users who haven't connected OpenClaw yet.
   // Once dismissed (skip or connected), we remember it for this session.
@@ -850,6 +861,16 @@ export default function App() {
     );
   }
 
+  if (!dataConsentGiven) {
+    return (
+      <AppStateContext.Provider value={state}>
+        <AppDispatchContext.Provider value={dispatch}>
+          <DataConsentModal onAccept={handleDataConsent} />
+        </AppDispatchContext.Provider>
+      </AppStateContext.Provider>
+    );
+  }
+
   // Show onboarding for new users: channels have been fetched (first API call completed)
   // and none exist. This prevents flashing onboarding for returning users whose
   // channel list simply hasn't loaded yet.
@@ -1097,6 +1118,9 @@ export default function App() {
                         {state.sessionModel ?? state.defaultModel ?? "Not connected"}
                       </span>
                     </div>
+
+                    {/* Account Settings */}
+                    <AccountSettings />
                   </div>
                 )}
 

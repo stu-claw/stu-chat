@@ -64,7 +64,7 @@ export type FirebaseSignInResult = {
   email: string;
   displayName: string | null;
   photoURL: string | null;
-  provider: "google" | "github";
+  provider: "google" | "github" | "apple";
 };
 
 // ---------------------------------------------------------------------------
@@ -216,5 +216,80 @@ export async function signInWithGitHub(): Promise<FirebaseSignInResult> {
     displayName: result.user.displayName,
     photoURL: result.user.photoURL,
     provider: "github",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Apple Sign-In
+// ---------------------------------------------------------------------------
+
+/**
+ * Native Apple Sign-In on iOS via @capgo/capacitor-social-login,
+ * then exchange for Firebase credential.
+ */
+async function nativeAppleSignIn(): Promise<FirebaseSignInResult> {
+  console.log("[NativeAppleSignIn] Step 1: initializing");
+  const { SocialLogin } = await import("@capgo/capacitor-social-login");
+
+  if (!_socialLoginInitialized) {
+    await withTimeout(
+      SocialLogin.initialize({ apple: {} }),
+      10000,
+      "SocialLogin.initialize(apple)",
+    );
+    _socialLoginInitialized = true;
+  }
+
+  console.log("[NativeAppleSignIn] Step 2: calling SocialLogin.login()");
+  const res = await SocialLogin.login({
+    provider: "apple",
+    options: { scopes: ["email", "name"] },
+  });
+
+  console.log("[NativeAppleSignIn] Step 3: SocialLogin.login() returned", JSON.stringify(res).substring(0, 200));
+
+  const appleResult = res.result as any;
+  const appleIdToken = appleResult.idToken;
+  if (!appleIdToken) {
+    throw new Error("Apple Sign-In did not return an idToken");
+  }
+
+  // Send the Apple ID token directly to the backend — skip Firebase client
+  // (signInWithCredential hangs in WKWebView on real devices, same as Google)
+  console.log("[NativeAppleSignIn] Step 4: Skipping Firebase client, sending Apple ID token directly to backend");
+
+  return {
+    idToken: appleIdToken,
+    email: appleResult.profile?.email ?? appleResult.email ?? "",
+    displayName: appleResult.profile?.name ?? appleResult.fullName?.givenName ?? null,
+    photoURL: null,
+    provider: "apple",
+  };
+}
+
+/**
+ * Sign in with Apple.
+ * - Web: Firebase popup with Apple OAuthProvider
+ * - Native iOS: Native Apple Sign-In via @capgo/capacitor-social-login → Firebase credential
+ */
+export async function signInWithApple(): Promise<FirebaseSignInResult> {
+  if (Capacitor.isNativePlatform()) {
+    return nativeAppleSignIn();
+  }
+
+  const firebaseAuth = getFirebaseAuth();
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("email");
+  provider.addScope("name");
+
+  const result = await signInWithPopup(firebaseAuth, provider);
+  const idToken = await result.user.getIdToken();
+
+  return {
+    idToken,
+    email: result.user.email ?? "",
+    displayName: result.user.displayName,
+    photoURL: result.user.photoURL,
+    provider: "apple",
   };
 }

@@ -235,7 +235,7 @@ export async function verifyAnyGoogleToken(
   const { payload: peek } = parseJwtUnverified(idToken);
 
   if (peek.iss === `${FIREBASE_TOKEN_ISSUER_PREFIX}${firebaseProjectId}`) {
-    // Standard Firebase ID token
+    // Standard Firebase ID token (from web Firebase popup)
     return verifyFirebaseIdToken(idToken, firebaseProjectId);
   }
 
@@ -244,7 +244,95 @@ export async function verifyAnyGoogleToken(
     return verifyGoogleIdToken(idToken, allowedGoogleClientIds);
   }
 
+  if (peek.iss === "https://appleid.apple.com") {
+    // Native Apple ID token (from iOS Sign in with Apple)
+    return verifyAppleIdToken(idToken, []);
+  }
+
   throw new Error(`Unrecognized token issuer: ${peek.iss}`);
+}
+
+// ---------------------------------------------------------------------------
+// Apple ID Token verification (for native iOS Sign in with Apple)
+// ---------------------------------------------------------------------------
+
+const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
+
+let cachedAppleKeys: JsonWebKey[] | null = null;
+let cachedAppleAt = 0;
+
+async function getApplePublicKeys(): Promise<JsonWebKey[]> {
+  const now = Date.now();
+  if (cachedAppleKeys && now - cachedAppleAt < CACHE_TTL_MS) {
+    return cachedAppleKeys;
+  }
+  const resp = await fetch(APPLE_JWKS_URL);
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch Apple JWKS: ${resp.status}`);
+  }
+  const jwks = (await resp.json()) as { keys: JsonWebKey[] };
+  cachedAppleKeys = jwks.keys;
+  cachedAppleAt = now;
+  return jwks.keys;
+}
+
+export async function verifyAppleIdToken(
+  idToken: string,
+  allowedAudiences: string[],
+): Promise<FirebaseTokenPayload> {
+  const { header, payload, signatureBytes, signedContent } =
+    parseJwtUnverified(idToken);
+
+  if (header.alg !== "RS256") {
+    throw new Error(`Unsupported algorithm: ${header.alg}`);
+  }
+
+  let keys = await getApplePublicKeys();
+  let matchingKey = keys.find((k) => (k as { kid?: string }).kid === header.kid);
+  if (!matchingKey) {
+    cachedAppleKeys = null;
+    keys = await getApplePublicKeys();
+    matchingKey = keys.find((k) => (k as { kid?: string }).kid === header.kid);
+    if (!matchingKey) {
+      throw new Error(`No matching Apple key for kid: ${header.kid}`);
+    }
+  }
+
+  const key = await crypto.subtle.importKey(
+    "jwk", matchingKey,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false, ["verify"],
+  );
+
+  const valid = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5", key, signatureBytes,
+    new TextEncoder().encode(signedContent),
+  );
+  if (!valid) throw new Error("Invalid Apple token signature");
+
+  const now = Math.floor(Date.now() / 1000);
+  if (payload.exp < now) throw new Error("Apple token has expired");
+  if (payload.iat > now + 300) throw new Error("Apple token issued in the future");
+
+  if (payload.iss !== "https://appleid.apple.com") {
+    throw new Error(`Invalid Apple token issuer: ${payload.iss}`);
+  }
+
+  if (allowedAudiences.length > 0 && !allowedAudiences.includes(payload.aud)) {
+    throw new Error(`Invalid Apple token audience: ${payload.aud}`);
+  }
+
+  if (!payload.sub) throw new Error("Missing subject in Apple token");
+
+  // Synthesize firebase-like fields so the rest of the auth flow works
+  if (!payload.firebase) {
+    payload.firebase = {
+      sign_in_provider: "apple.com",
+      identities: { "apple.com": [payload.sub] },
+    };
+  }
+
+  return payload;
 }
 
 // ---------------------------------------------------------------------------

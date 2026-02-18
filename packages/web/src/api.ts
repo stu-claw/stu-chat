@@ -128,6 +128,7 @@ export type AuthConfig = {
   emailEnabled: boolean;
   googleEnabled: boolean;
   githubEnabled: boolean;
+  appleEnabled: boolean;
 };
 
 export const authApi = {
@@ -141,6 +142,7 @@ export const authApi = {
   firebase: (idToken: string) =>
     request<AuthResponse>("POST", "/auth/firebase", { idToken }),
   me: () => request<{ id: string; email: string; displayName: string | null; settings: UserSettings }>("GET", "/me"),
+  deleteAccount: () => request<{ ok: boolean }>("DELETE", "/auth/account"),
 };
 
 // ---- User settings ----

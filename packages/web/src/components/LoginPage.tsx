@@ -3,7 +3,7 @@ import { authApi, setToken, setRefreshToken } from "../api";
 import type { AuthConfig } from "../api";
 import { useAppDispatch } from "../store";
 import { dlog } from "../debug-log";
-import { isFirebaseConfigured, signInWithGoogle, signInWithGitHub } from "../firebase";
+import { isFirebaseConfigured, signInWithGoogle, signInWithGitHub, signInWithApple } from "../firebase";
 
 /** Google "G" logo SVG */
 function GoogleIcon() {
@@ -26,6 +26,15 @@ function GitHubIcon() {
   );
 }
 
+/** Apple logo SVG */
+function AppleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style={{ flexShrink: 0 }}>
+      <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+    </svg>
+  );
+}
+
 export function LoginPage() {
   const dispatch = useAppDispatch();
   const [isRegister, setIsRegister] = useState(false);
@@ -34,7 +43,7 @@ export function LoginPage() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [oauthLoading, setOauthLoading] = useState<"google" | "github" | null>(null);
+  const [oauthLoading, setOauthLoading] = useState<"google" | "github" | "apple" | null>(null);
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
 
   const firebaseEnabled = isFirebaseConfigured();
@@ -44,7 +53,7 @@ export function LoginPage() {
   useEffect(() => {
     authApi.config().then(setAuthConfig).catch(() => {
       // Fallback: assume email enabled (local dev) if config endpoint fails
-      setAuthConfig({ emailEnabled: true, googleEnabled: firebaseEnabled, githubEnabled: firebaseEnabled });
+      setAuthConfig({ emailEnabled: true, googleEnabled: firebaseEnabled, githubEnabled: firebaseEnabled, appleEnabled: firebaseEnabled });
     });
   }, [firebaseEnabled]);
 
@@ -90,26 +99,24 @@ export function LoginPage() {
     }
   };
 
-  const handleOAuthSignIn = async (provider: "google" | "github") => {
+  const handleOAuthSignIn = async (provider: "google" | "github" | "apple") => {
     setError("");
     setOauthLoading(provider);
 
-    // Timeout protection: if sign-in hangs for >30s, reset the UI
+    const timeoutMs = provider === "apple" ? 120000 : 30000;
     const timeout = setTimeout(() => {
       setOauthLoading(null);
-      setError(`${provider} sign-in timed out. Please try again.`);
-    }, 30000);
+    }, timeoutMs);
 
     try {
       dlog.info("Auth", `Starting ${provider} sign-in`);
-      const signInFn = provider === "google" ? signInWithGoogle : signInWithGitHub;
+      const signInFn = provider === "google" ? signInWithGoogle : provider === "github" ? signInWithGitHub : signInWithApple;
       const { idToken } = await signInFn();
       dlog.info("Auth", `Got Firebase ID token from ${provider}, verifying with backend`);
       const res = await authApi.firebase(idToken);
       dlog.info("Auth", `${provider} sign-in success — user ${res.id} (${res.email})`);
       handleAuthSuccess(res);
     } catch (err) {
-      // Don't show error for user-cancelled popup
       if (err instanceof Error && (
         err.message.includes("popup-closed-by-user") ||
         err.message.includes("cancelled")
@@ -179,6 +186,28 @@ export function LoginPage() {
           {configLoaded && firebaseEnabled && (
             <>
               <div className="space-y-3">
+                {/* Apple — listed first per Apple HIG */}
+                <button
+                  type="button"
+                  onClick={() => handleOAuthSignIn("apple")}
+                  disabled={anyLoading}
+                  className="w-full flex items-center justify-center gap-3 py-2.5 px-4 font-medium text-body rounded-sm disabled:opacity-50 transition-colors hover:brightness-95"
+                  style={{
+                    background: "var(--bg-surface)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  {oauthLoading === "apple" ? (
+                    <span>Signing in...</span>
+                  ) : (
+                    <>
+                      <AppleIcon />
+                      <span>Continue with Apple</span>
+                    </>
+                  )}
+                </button>
+
                 {/* Google */}
                 <button
                   type="button"
@@ -339,6 +368,17 @@ export function LoginPage() {
               </div>
             </>
           )}
+
+          {/* Privacy & Terms links */}
+          <div className="mt-6 text-center">
+            <a href="https://botschat.app/privacy.html" target="_blank" rel="noopener noreferrer" className="text-tiny hover:underline" style={{ color: "var(--text-muted)" }}>
+              Privacy Policy
+            </a>
+            <span className="mx-2 text-tiny" style={{ color: "var(--text-muted)" }}>·</span>
+            <a href="https://botschat.app/terms.html" target="_blank" rel="noopener noreferrer" className="text-tiny hover:underline" style={{ color: "var(--text-muted)" }}>
+              Terms of Service
+            </a>
+          </div>
         </div>
       </div>
     </div>
