@@ -64,6 +64,9 @@ export default function App() {
     return E2eService.subscribe(() => setE2eReady(E2eService.hasKey()));
   }, []);
 
+  // Foreground resume counter — triggers message reload when app returns from background
+  const [foregroundResumeCount, setForegroundResumeCount] = useState(0);
+
   // Responsive layout hooks (must be called unconditionally)
   const isMobile = useIsMobile();
   const mainLayout = useDefaultLayout({ id: "botschat-main" });
@@ -498,7 +501,7 @@ export default function App() {
         console.error("Failed to load message history:", err);
       });
     return () => { stale = true; };
-  }, [state.user, state.selectedSessionKey, e2eReady]);
+  }, [state.user, state.selectedSessionKey, e2eReady, foregroundResumeCount]);
 
   // Keep a ref to state for use in WS handler (avoids stale closures)
   const stateRef = useRef(state);
@@ -818,7 +821,9 @@ export default function App() {
     initPushNotifications().catch((err) => {
       dlog.warn("Push", `Push init failed: ${err}`);
     });
-    const cleanupForeground = setupForegroundDetection(client);
+    const cleanupForeground = setupForegroundDetection(client, () => {
+      setForegroundResumeCount((c) => c + 1);
+    });
 
     return () => {
       cleanupForeground();

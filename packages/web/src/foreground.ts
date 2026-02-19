@@ -7,9 +7,13 @@ import { Capacitor } from "@capacitor/core";
 import type { BotsChatWSClient } from "./ws";
 import { dlog } from "./debug-log";
 
-export function setupForegroundDetection(wsClient: BotsChatWSClient): () => void {
+export function setupForegroundDetection(
+  wsClient: BotsChatWSClient,
+  onResume?: () => void,
+): () => void {
   const notifyForeground = () => {
     wsClient.send({ type: "foreground.enter" });
+    onResume?.();
     dlog.info("Foreground", "Entered foreground");
   };
 
