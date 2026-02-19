@@ -650,8 +650,26 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
         </div>
       )}
 
-      {/* Session tabs — shown for all agents (including default/General) */}
-      {showSessionTabs && <SessionTabs channelId={channelId} />}
+      {/* Session tabs + model selector (mobile: inline with tabs) */}
+      {showSessionTabs && (
+        <div className="flex items-center flex-shrink-0">
+          <div className="flex-1 min-w-0">
+            <SessionTabs channelId={channelId} />
+          </div>
+          {isMobile && (
+            <div className="flex-shrink-0 pr-2" style={{ borderBottom: "1px solid var(--border)" }}>
+              <ModelSelect
+                value={currentModel ?? ""}
+                onChange={handleModelChange}
+                models={state.models}
+                disabled={!state.openclawConnected}
+                placeholder="No model"
+                compact
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages – flat-row layout (overflow-x-hidden prevents horizontal scroll from long URLs/code) */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">

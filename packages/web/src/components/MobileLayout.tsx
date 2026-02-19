@@ -60,6 +60,13 @@ export function MobileLayout({
   // App.tsx auto-selects an agent on mount — that would navigate to an empty
   // chat screen before sessions have loaded (issue #4a / #4b).
 
+  // Push notification tap → navigate to chat
+  React.useEffect(() => {
+    function onPushNav() { setScreen("chat"); }
+    window.addEventListener("botschat:push-nav", onPushNav);
+    return () => window.removeEventListener("botschat:push-nav", onPushNav);
+  }, []);
+
   // Navigate to thread when thread opens
   React.useEffect(() => {
     if (state.activeThreadId && screen === "chat") {

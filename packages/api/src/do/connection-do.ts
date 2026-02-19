@@ -218,6 +218,9 @@ export class ConnectionDO implements DurableObject {
         // After auth, request task scan + models list from the plugin
         ws.send(JSON.stringify({ type: "task.scan.request" }));
         ws.send(JSON.stringify({ type: "models.request" }));
+        // Send notification preview preference to plugin
+        const notifyPreview = await this.getNotifyPreviewSetting(userId);
+        ws.send(JSON.stringify({ type: "settings.notifyPreview", enabled: notifyPreview }));
         // Notify all browser clients that OpenClaw is now connected
         this.broadcastToBrowsers(
           JSON.stringify({ type: "connection.status", openclawConnected: true, defaultModel: this.defaultModel, models: this.cachedModels }),
@@ -316,11 +319,13 @@ export class ConnectionDO implements DurableObject {
       await this.handleJobUpdate(msg);
     }
 
-    // Forward all messages to browser clients
+    // Forward all messages to browser clients (strip notifyPreview — plaintext
+    // must not be relayed to browser WebSockets; browsers decrypt locally)
     if (msg.type === "agent.text") {
       console.log(`[DO] Forwarding agent.text to browsers: encrypted=${msg.encrypted}, messageId=${msg.messageId}, textLen=${typeof msg.text === "string" ? msg.text.length : "?"}`);
     }
-    this.broadcastToBrowsers(JSON.stringify(msg));
+    const { notifyPreview: _stripped, ...msgForBrowser } = msg;
+    this.broadcastToBrowsers(JSON.stringify(msgForBrowser));
 
     // Send push notification if no browser session is in foreground
     if (
@@ -547,6 +552,24 @@ export class ConnectionDO implements DurableObject {
 
   // ---- Helpers ----
 
+  /** Read the user's notifyPreview preference from D1 settings_json. */
+  private async getNotifyPreviewSetting(userId?: string | null): Promise<boolean> {
+    const uid = userId ?? await this.state.storage.get<string>("userId");
+    if (!uid) return false;
+    try {
+      const row = await this.env.DB.prepare(
+        "SELECT settings_json FROM users WHERE id = ?",
+      ).bind(uid).first<{ settings_json: string }>();
+      if (row?.settings_json) {
+        const settings = JSON.parse(row.settings_json);
+        return settings.notifyPreview === true;
+      }
+    } catch (err) {
+      console.error("[DO] Failed to read notifyPreview setting:", err);
+    }
+    return false;
+  }
+
   /** Restore cachedModels and defaultModel from durable storage if in-memory cache is empty. */
   private async ensureCachedModels(): Promise<void> {
     if (this.cachedModels.length > 0) return;
@@ -627,7 +650,10 @@ export class ConnectionDO implements DurableObject {
     let notifBody = "New message";
     if (msg.type === "agent.text") {
       data.text = (msg.text as string) ?? "";
-      if (!msg.encrypted && data.text) {
+      if (msg.encrypted && typeof msg.notifyPreview === "string" && msg.notifyPreview) {
+        const preview = msg.notifyPreview as string;
+        notifBody = preview.length > 100 ? preview.slice(0, 100) + "…" : preview;
+      } else if (!msg.encrypted && data.text) {
         notifBody = data.text.length > 100 ? data.text.slice(0, 100) + "…" : data.text;
       } else if (msg.encrypted) {
         notifBody = "New encrypted message";

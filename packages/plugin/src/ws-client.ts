@@ -40,6 +40,7 @@ export class BotsChatCloudClient {
   private intentionalClose = false;
   private _connected = false;
   public e2eKey: Uint8Array | null = null;
+  public notifyPreview = false;
 
   constructor(private opts: BotsChatCloudClientOptions) {}
 

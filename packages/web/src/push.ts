@@ -15,6 +15,25 @@ import { E2eService } from "./e2e";
 
 let initialized = false;
 
+// ---- Push navigation (deep-link on notification tap) ----
+
+let pendingNavSessionKey: string | null = null;
+
+export function getPendingPushNav(): string | null {
+  return pendingNavSessionKey;
+}
+
+export function clearPendingPushNav(): void {
+  pendingNavSessionKey = null;
+}
+
+function firePushNav(sessionKey: string): void {
+  pendingNavSessionKey = sessionKey;
+  window.dispatchEvent(
+    new CustomEvent("botschat:push-nav", { detail: { sessionKey } }),
+  );
+}
+
 // ---- IndexedDB helpers for SW E2E key sync ----
 
 const IDB_NAME = "botschat-sw";
@@ -189,6 +208,14 @@ async function initNativePush(): Promise<void> {
 
     PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
       dlog.info("Push", "Notification tapped", action);
+      // iOS: custom data nested under "custom" key; Android: at root level
+      const data = action.notification?.data;
+      const sessionKey: string | undefined =
+        data?.custom?.sessionKey || data?.sessionKey;
+      if (sessionKey) {
+        dlog.info("Push", `Push nav target: ${sessionKey}`);
+        firePushNav(sessionKey);
+      }
     });
   } catch (err) {
     dlog.error("Push", "Native push init failed", err);

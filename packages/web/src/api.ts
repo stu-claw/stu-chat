@@ -122,7 +122,7 @@ async function request<T>(
 // ---- Auth ----
 export type AuthResponse = { id: string; email: string; token: string; refreshToken?: string; displayName?: string };
 
-export type UserSettings = { defaultModel?: string };
+export type UserSettings = { defaultModel?: string; notifyPreview?: boolean };
 
 export type AuthConfig = {
   emailEnabled: boolean;
@@ -147,7 +147,7 @@ export const authApi = {
 
 // ---- User settings ----
 export const meApi = {
-  updateSettings: (data: { defaultModel?: string }) =>
+  updateSettings: (data: { defaultModel?: string; notifyPreview?: boolean }) =>
     request<{ ok: boolean; settings: UserSettings }>("PATCH", "/me", data),
 };
 

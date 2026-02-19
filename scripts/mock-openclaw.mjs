@@ -99,6 +99,7 @@ let ws = null;
 let pingTimer = null;
 let intentionalClose = false;
 let userId = null;
+let notifyPreview = false;
 
 function buildWsUrl() {
   let host = SERVER_URL.replace(/^https?:\/\//, "");
@@ -266,6 +267,11 @@ function handleMessage(msg) {
       logSend(`[defaultModel.updated] ${msg.defaultModel}`);
       break;
 
+    case "settings.notifyPreview":
+      notifyPreview = msg.enabled === true;
+      logRecv(`[settings.notifyPreview] enabled=${notifyPreview}`);
+      break;
+
     default:
       logWarn(`Unhandled message type: ${msg.type}`);
   }
@@ -299,13 +305,17 @@ async function handleUserMessage(msg) {
       messageId: randomUUID(),
     });
   } else {
-    send({
+    const msgPayload = {
       type: "agent.text",
       sessionKey: msg.sessionKey,
       text: replyText,
       messageId: randomUUID(),
-    });
-    logSend(`[agent.text] "${truncate(replyText, 60)}"`);
+    };
+    if (notifyPreview) {
+      msgPayload.notifyPreview = truncate(replyText, 100);
+    }
+    send(msgPayload);
+    logSend(`[agent.text] "${truncate(replyText, 60)}"${notifyPreview ? " +preview" : ""}`);
   }
 }
 

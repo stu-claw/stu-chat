@@ -124,7 +124,7 @@ protectedApp.get("/me", async (c) => {
 
 protectedApp.patch("/me", async (c) => {
   const userId = c.get("userId");
-  const body = await c.req.json<{ defaultModel?: string }>();
+  const body = await c.req.json<{ defaultModel?: string; notifyPreview?: boolean }>();
 
   // defaultModel is not stored in D1 — get/set only via plugin (connection.status / push).
   const existing = await c.env.DB.prepare(
@@ -135,7 +135,11 @@ protectedApp.patch("/me", async (c) => {
 
   const settings = JSON.parse(existing?.settings_json || "{}");
   delete settings.defaultModel;
-  // Persist other settings (if any) to D1; defaultModel is never written.
+
+  if (body.notifyPreview !== undefined) {
+    settings.notifyPreview = body.notifyPreview;
+  }
+
   await c.env.DB.prepare(
     "UPDATE users SET settings_json = ? WHERE id = ?",
   )
@@ -158,6 +162,25 @@ protectedApp.patch("/me", async (c) => {
       );
     } catch (err) {
       console.error("Failed to push default model to OpenClaw:", err);
+    }
+  }
+
+  if (body.notifyPreview !== undefined) {
+    try {
+      const doId = c.env.CONNECTION_DO.idFromName(userId);
+      const stub = c.env.CONNECTION_DO.get(doId);
+      await stub.fetch(
+        new Request("https://internal/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "settings.notifyPreview",
+            enabled: body.notifyPreview,
+          }),
+        }),
+      );
+    } catch (err) {
+      console.error("Failed to push notifyPreview to OpenClaw:", err);
     }
   }
 

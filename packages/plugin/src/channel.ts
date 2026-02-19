@@ -153,6 +153,9 @@ export const botschatPlugin = {
         }
       }
 
+      const notifyPreview = (encrypted && client.notifyPreview && ctx.text)
+        ? (ctx.text.length > 100 ? ctx.text.slice(0, 100) + "…" : ctx.text)
+        : undefined;
       client.send({
         type: "agent.text",
         sessionKey: ctx.to,
@@ -161,8 +164,9 @@ export const botschatPlugin = {
         threadId: ctx.threadId?.toString(),
         messageId,
         encrypted,
+        ...(notifyPreview ? { notifyPreview } : {}),
       });
-      console.log(`[botschat][sendText] sent agent.text, encrypted=${encrypted}`);
+      console.log(`[botschat][sendText] sent agent.text, encrypted=${encrypted}, notifyPreview=${!!notifyPreview}`);
       return { ok: true };
     },
 
@@ -191,6 +195,9 @@ export const botschatPlugin = {
         }
       }
 
+      const notifyPreview = (encrypted && client.notifyPreview && ctx.text)
+        ? (ctx.text.length > 100 ? ctx.text.slice(0, 100) + "…" : ctx.text)
+        : undefined;
       if (ctx.mediaUrl) {
         client.send({
           type: "agent.media",
@@ -199,6 +206,7 @@ export const botschatPlugin = {
           caption: text || undefined,
           messageId,
           encrypted,
+          ...(notifyPreview ? { notifyPreview } : {}),
         });
       } else {
         client.send({
@@ -207,6 +215,7 @@ export const botschatPlugin = {
           text: text,
           messageId,
           encrypted,
+          ...(notifyPreview ? { notifyPreview } : {}),
         });
       }
       return { ok: true };
@@ -587,7 +596,10 @@ async function handleCloudMessage(
           console.log(`[botschat][deliver] no encryption: hasKey=${!!client.e2eKey}, textLen=${text.length}`);
         }
 
-        console.log(`[botschat][deliver] sending: type=${payload.mediaUrl ? "agent.media" : "agent.text"}, encrypted=${encrypted}, messageId=${messageId}`);
+        const notifyPreviewText = (encrypted && client.notifyPreview && payload.text)
+          ? (payload.text.length > 100 ? payload.text.slice(0, 100) + "…" : payload.text)
+          : undefined;
+        console.log(`[botschat][deliver] sending: type=${payload.mediaUrl ? "agent.media" : "agent.text"}, encrypted=${encrypted}, messageId=${messageId}, notifyPreview=${!!notifyPreviewText}`);
         if (payload.mediaUrl) {
           client.send({
             type: "agent.media",
@@ -597,6 +609,7 @@ async function handleCloudMessage(
             threadId,
             messageId,
             encrypted,
+            ...(notifyPreviewText ? { notifyPreview: notifyPreviewText } : {}),
           });
         } else if (payload.text) {
           client.send({
@@ -606,6 +619,7 @@ async function handleCloudMessage(
             threadId,
             messageId,
             encrypted,
+            ...(notifyPreviewText ? { notifyPreview: notifyPreviewText } : {}),
           });
           // Detect model-change confirmations and emit model.changed
           // Handles both formats:
@@ -785,6 +799,16 @@ async function handleCloudMessage(
             client.send({ type: "defaultModel.updated", model });
           }
         }
+      }
+      break;
+    }
+
+    case "settings.notifyPreview": {
+      const enabled = msg.enabled === true;
+      const client = getCloudClient(ctx.accountId);
+      if (client) {
+        client.notifyPreview = enabled;
+        ctx.log?.info(`[${ctx.accountId}] Notification preview ${enabled ? "enabled" : "disabled"}`);
       }
       break;
     }

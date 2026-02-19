@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { E2eService } from "../e2e";
+import { meApi, authApi } from "../api";
 import { AppStateContext } from "../store";
 
 export function E2ESettings() {
@@ -10,6 +11,8 @@ export function E2ESettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [notifyPreview, setNotifyPreview] = useState(false);
+  const [notifyPreviewLoading, setNotifyPreviewLoading] = useState(false);
 
   // Subscribe to E2eService changes
   useEffect(() => {
@@ -17,6 +20,28 @@ export function E2ESettings() {
       setHasKey(E2eService.hasKey());
     });
   }, []);
+
+  // Load notifyPreview preference from server
+  useEffect(() => {
+    authApi.me().then((data) => {
+      if (data?.settings?.notifyPreview) {
+        setNotifyPreview(true);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const handleNotifyPreviewToggle = async (enabled: boolean) => {
+    setNotifyPreview(enabled);
+    setNotifyPreviewLoading(true);
+    try {
+      await meApi.updateSettings({ notifyPreview: enabled });
+    } catch (err) {
+      console.error("Failed to update notification preview setting:", err);
+      setNotifyPreview(!enabled);
+    } finally {
+      setNotifyPreviewLoading(false);
+    }
+  };
 
   const handleUnlock = async () => {
     if (!password || !user) return;
@@ -133,9 +158,53 @@ export function E2ESettings() {
         )}
       </div>
 
+      {/* Notification Preview Toggle */}
+      <div className="p-4 rounded-md border" style={{ borderColor: "var(--border)", background: "var(--bg-surface)" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: "var(--text-secondary)" }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+            <span className="text-caption font-bold" style={{ color: "var(--text-primary)" }}>
+              Notification Preview
+            </span>
+          </div>
+          <button
+            role="switch"
+            aria-checked={notifyPreview}
+            onClick={() => handleNotifyPreviewToggle(!notifyPreview)}
+            disabled={notifyPreviewLoading}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+            style={{
+              background: notifyPreview ? "var(--bg-active, #6366f1)" : "var(--border)",
+              opacity: notifyPreviewLoading ? 0.5 : 1,
+            }}
+          >
+            <span
+              className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+              style={{ transform: notifyPreview ? "translateX(1.375rem)" : "translateX(0.25rem)" }}
+            />
+          </button>
+        </div>
+        <p className="text-caption mb-2" style={{ color: "var(--text-muted)" }}>
+          Show message text in push notifications on iOS and Android.
+        </p>
+        {notifyPreview && (
+          <div className="p-3 rounded border text-caption" style={{ borderColor: "var(--accent-yellow, #d69e2e)", background: "rgba(214, 158, 46, 0.08)", color: "var(--text-secondary)" }}>
+            <p className="font-bold mb-1" style={{ color: "var(--accent-yellow, #d69e2e)" }}>Security trade-off</p>
+            <ul className="list-disc ml-4 space-y-0.5">
+              <li>Message previews will briefly pass through our server to deliver notifications.</li>
+              <li>Previews are <strong>never stored</strong> — they exist only in memory during delivery.</li>
+              <li>Your full message history remains end-to-end encrypted.</li>
+              <li>Web browser notifications are not affected (they decrypt locally).</li>
+            </ul>
+          </div>
+        )}
+      </div>
+
       <div className="text-caption" style={{ color: "var(--text-muted)" }}>
           <p className="font-bold text-red-400 mb-1">Warning:</p>
-          <ul className="list-disc ml-5 space-y-1">
+          <ul className="list-disc ml-4 space-y-1">
               <li>If you lose this password, your encrypted history is lost forever.</li>
               <li>We do not store this password on our servers.</li>
               <li>You must use the same password on all devices to access your history.</li>

@@ -13,7 +13,7 @@ import {
 import { getToken, setToken, setRefreshToken, agentsApi, channelsApi, tasksApi, jobsApi, authApi, messagesApi, modelsApi, meApi, sessionsApi, type ModelInfo } from "./api";
 import { ModelSelect } from "./components/ModelSelect";
 import { BotsChatWSClient, type WSMessage } from "./ws";
-import { initPushNotifications } from "./push";
+import { initPushNotifications, getPendingPushNav, clearPendingPushNav } from "./push";
 import { setupForegroundDetection } from "./foreground";
 import { IconRail } from "./components/IconRail";
 import { Sidebar } from "./components/Sidebar";
@@ -51,6 +51,7 @@ export default function App() {
   const wsClientRef = useRef<BotsChatWSClient | null>(null);
   const handleWSMessageRef = useRef<(msg: WSMessage) => void>(() => {});
   const creatingGeneralRef = useRef(false);
+  const pushNavTargetRef = useRef<string | null>(null);
 
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"general" | "connection" | "security">("general");
@@ -262,6 +263,20 @@ export default function App() {
         dlog.info("Agents", `Loaded ${agents.length} agents`, agents.map((a) => ({ id: a.id, name: a.name, channelId: a.channelId })));
         dispatch({ type: "SET_AGENTS", agents });
         if (agents.length > 0 && !state.selectedAgentId) {
+          // Push notification deep-link takes priority over localStorage
+          const pushNav = pushNavTargetRef.current;
+          if (pushNav) {
+            const m = pushNav.match(/^agent:([^:]+):/);
+            if (m) {
+              const ta = agents.find((a) => a.sessionKey.startsWith(`agent:${m[1]}:`));
+              if (ta) {
+                dlog.info("Push", `Agent select from push nav: ${ta.name} (${ta.id})`);
+                dispatch({ type: "SET_ACTIVE_VIEW", view: "messages" });
+                dispatch({ type: "SELECT_AGENT", agentId: ta.id, sessionKey: ta.sessionKey });
+                return;
+              }
+            }
+          }
           // Restore last selected channel from localStorage if available
           let target = agents[0];
           try {
@@ -374,6 +389,18 @@ export default function App() {
         dlog.info("Sessions", `Loaded ${sessions.length} sessions for channel ${agent.channelId}`);
         dispatch({ type: "SET_SESSIONS", sessions });
         if (sessions.length > 0) {
+          // Push notification deep-link takes priority
+          const pushNav = pushNavTargetRef.current;
+          if (pushNav) {
+            const ts = sessions.find((s) => s.sessionKey === pushNav);
+            if (ts) {
+              dlog.info("Push", `Session select from push nav: ${ts.name} (${ts.id})`);
+              pushNavTargetRef.current = null;
+              clearPendingPushNav();
+              dispatch({ type: "SELECT_SESSION", sessionId: ts.id, sessionKey: ts.sessionKey });
+              return;
+            }
+          }
           // Restore last selected session from localStorage if available
           let target = sessions[0];
           try {
@@ -508,6 +535,56 @@ export default function App() {
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
+
+  // ---- Push notification deep-link navigation ----
+  const navigateToPushTarget = useCallback((sessionKey: string) => {
+    dlog.info("Push", `Navigating to session: ${sessionKey}`);
+    const baseKey = sessionKey.replace(/:thread:.+$/, "");
+    pushNavTargetRef.current = baseKey;
+
+    const match = baseKey.match(/^agent:([^:]+):/);
+    if (!match) return;
+    const openclawAgentId = match[1];
+
+    const st = stateRef.current;
+    const targetAgent = st.agents.find((a) =>
+      a.sessionKey.startsWith(`agent:${openclawAgentId}:`),
+    );
+    if (!targetAgent) return;
+
+    if (st.activeView !== "messages") {
+      dispatch({ type: "SET_ACTIVE_VIEW", view: "messages" });
+    }
+    if (st.selectedAgentId !== targetAgent.id) {
+      dispatch({
+        type: "SELECT_AGENT",
+        agentId: targetAgent.id,
+        sessionKey: targetAgent.sessionKey,
+      });
+    } else {
+      const targetSession = st.sessions.find((s) => s.sessionKey === baseKey);
+      if (targetSession) {
+        pushNavTargetRef.current = null;
+        clearPendingPushNav();
+        dispatch({
+          type: "SELECT_SESSION",
+          sessionId: targetSession.id,
+          sessionKey: targetSession.sessionKey,
+        });
+      }
+    }
+  }, [dispatch]);
+
+  useEffect(() => {
+    function onPushNav(e: Event) {
+      const sk = (e as CustomEvent).detail?.sessionKey;
+      if (sk) navigateToPushTarget(sk);
+    }
+    window.addEventListener("botschat:push-nav", onPushNav);
+    const pending = getPendingPushNav();
+    if (pending) navigateToPushTarget(pending);
+    return () => window.removeEventListener("botschat:push-nav", onPushNav);
+  }, [navigateToPushTarget]);
 
   // ---- WS message handler ----
   const handleWSMessage = useCallback(
@@ -818,9 +895,14 @@ export default function App() {
     wsClientRef.current = client;
 
     // Initialize push notifications and foreground detection
-    initPushNotifications().catch((err) => {
-      dlog.warn("Push", `Push init failed: ${err}`);
-    });
+    initPushNotifications()
+      .then(() => {
+        const pending = getPendingPushNav();
+        if (pending) navigateToPushTarget(pending);
+      })
+      .catch((err) => {
+        dlog.warn("Push", `Push init failed: ${err}`);
+      });
     const cleanupForeground = setupForegroundDetection(client, () => {
       setForegroundResumeCount((c) => c + 1);
     });

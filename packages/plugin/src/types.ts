@@ -48,6 +48,7 @@ export type CloudOutbound =
       threadId?: string;
       encrypted?: boolean;
       messageId?: string;
+      notifyPreview?: string;
     }
   | {
       type: "agent.media";
@@ -58,6 +59,7 @@ export type CloudOutbound =
       threadId?: string;
       encrypted?: boolean;
       messageId?: string;
+      notifyPreview?: string;
     }
   | { type: "agent.stream.start"; sessionKey: string; runId: string }
   | {
@@ -190,6 +192,8 @@ export type CloudInbound =
   // Models request — cloud asks plugin for available models/providers
   | { type: "models.request" }
   // Default model — cloud pushes user's default model so plugin applies it in OpenClaw config
-  | { type: "settings.defaultModel"; defaultModel: string };
+  | { type: "settings.defaultModel"; defaultModel: string }
+  // Notification preview — cloud tells plugin whether to include plaintext previews in encrypted messages
+  | { type: "settings.notifyPreview"; enabled: boolean };
 
 export type CloudMessage = CloudOutbound | CloudInbound;
