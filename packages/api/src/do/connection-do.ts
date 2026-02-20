@@ -5,6 +5,20 @@ import { sendApnsNotification, type ApnsConfig } from "../utils/apns.js";
 import { generateId as generateIdUtil } from "../utils/id.js";
 import { randomUUID } from "../utils/uuid.js";
 
+/** Presence info stored in browser WebSocket attachments (survives DO hibernation). */
+interface BrowserAttachment {
+  authenticated: boolean;
+  tag: string;
+  foreground: boolean;
+  sessionKey: string | null;
+  /** Timestamp (ms) when the session last went to background. */
+  backgroundAt: number | null;
+}
+
+/** Grace period constants for push notification suppression. */
+const BG_GRACE_MS = 15_000;   // 15 s after going background
+const DC_GRACE_MS = 30_000;   // 30 s after WebSocket disconnect
+
 /**
  * ConnectionDO — one Durable Object instance per BotsChat user.
  *
@@ -29,8 +43,12 @@ export class ConnectionDO implements DurableObject {
   /** Pending resolve for a real-time task.scan.request → task.scan.result round-trip. */
   private pendingScanResolve: ((tasks: Array<Record<string, unknown>>) => void) | null = null;
 
-  /** Browser sessions that report themselves in foreground (push notifications are suppressed). */
-  private foregroundSessions = new Set<string>();
+  /**
+   * Recently disconnected browser sessions — provides a grace period so that
+   * brief network blips don't immediately trigger push notifications.
+   * In-memory only; if the DO hibernates, the grace period has expired anyway.
+   */
+  private recentDisconnects = new Map<string, number>();
 
   /** Timestamp of last accepted OpenClaw WebSocket (in-memory, no storage write). */
   private lastOpenClawAcceptedAt = 0;
@@ -150,9 +168,13 @@ export class ConnectionDO implements DurableObject {
         JSON.stringify({ type: "openclaw.disconnected" }),
       );
     }
-    // Clean up foreground tracking for browser sessions
+    // Disconnect grace: remember recently-disconnected browser sessions so
+    // push notifications are still suppressed during brief network blips.
     if (tag?.startsWith("browser:")) {
-      this.foregroundSessions.delete(tag);
+      const att = ws.deserializeAttachment() as BrowserAttachment | null;
+      if (att?.foreground) {
+        this.recentDisconnects.set(tag, Date.now());
+      }
     }
   }
 
@@ -217,7 +239,17 @@ export class ConnectionDO implements DurableObject {
 
     const tag = `browser:${sessionId}`;
     this.state.acceptWebSocket(server, [tag]);
-    server.serializeAttachment({ authenticated: false, tag });
+    const att: BrowserAttachment = {
+      authenticated: false,
+      tag,
+      foreground: false,
+      sessionKey: null,
+      backgroundAt: null,
+    };
+    server.serializeAttachment(att);
+
+    // Clear disconnect grace entry — this session is back.
+    this.recentDisconnects.delete(tag);
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -377,10 +409,10 @@ export class ConnectionDO implements DurableObject {
     const { notifyPreview: _stripped, ...msgForBrowser } = msg;
     this.broadcastToBrowsers(JSON.stringify(msgForBrowser));
 
-    // Send push notification if no browser session is in foreground
+    // Send push notification unless a device is (or was recently) in the foreground
     if (
       (msg.type === "agent.text" || msg.type === "agent.media" || msg.type === "agent.a2ui") &&
-      this.foregroundSessions.size === 0 &&
+      !this.shouldSuppressPush() &&
       (this.env.FCM_SERVICE_ACCOUNT_JSON || this.env.APNS_AUTH_KEY)
     ) {
       this.sendPushNotifications(msg).catch((err) => {
@@ -393,7 +425,7 @@ export class ConnectionDO implements DurableObject {
     ws: WebSocket,
     msg: Record<string, unknown>,
   ): Promise<void> {
-    const attachment = ws.deserializeAttachment() as { authenticated: boolean; tag: string } | null;
+    const attachment = ws.deserializeAttachment() as BrowserAttachment | null;
 
     // Handle browser auth — verify JWT token
     if (msg.type === "auth") {
@@ -444,15 +476,29 @@ export class ConnectionDO implements DurableObject {
       return;
     }
 
-    // Handle foreground/background state tracking for push notifications
+    // ---- Presence / focus tracking (stored in WS attachment, hibernation-safe) ----
     if (msg.type === "foreground.enter") {
-      const tag = attachment.tag;
-      if (tag) this.foregroundSessions.add(tag);
+      ws.serializeAttachment({
+        ...attachment,
+        foreground: true,
+        sessionKey: (msg.sessionKey as string) ?? attachment.sessionKey ?? null,
+        backgroundAt: null,
+      } satisfies BrowserAttachment);
       return;
     }
     if (msg.type === "foreground.leave") {
-      const tag = attachment.tag;
-      if (tag) this.foregroundSessions.delete(tag);
+      ws.serializeAttachment({
+        ...attachment,
+        foreground: false,
+        backgroundAt: Date.now(),
+      } satisfies BrowserAttachment);
+      return;
+    }
+    if (msg.type === "focus.update") {
+      ws.serializeAttachment({
+        ...attachment,
+        sessionKey: (msg.sessionKey as string) ?? null,
+      } satisfies BrowserAttachment);
       return;
     }
 
@@ -666,6 +712,39 @@ export class ConnectionDO implements DurableObject {
         }
       }
     }
+  }
+
+  // ---- Presence helpers ----
+
+  /**
+   * Determine whether push notifications should be suppressed because a device
+   * is (or was very recently) in the foreground.
+   *
+   * Checks three layers:
+   * 1. Any connected browser socket with `foreground === true`
+   * 2. Background grace: socket went background < BG_GRACE_MS ago
+   * 3. Disconnect grace: socket disconnected < DC_GRACE_MS ago
+   */
+  private shouldSuppressPush(): boolean {
+    const now = Date.now();
+
+    // 1 + 2: scan connected browser sockets
+    const sockets = this.state.getWebSockets();
+    for (const s of sockets) {
+      const att = s.deserializeAttachment() as BrowserAttachment | null;
+      if (!att || !att.tag?.startsWith("browser:") || !att.authenticated) continue;
+      if (att.foreground) return true;
+      if (att.backgroundAt && now - att.backgroundAt < BG_GRACE_MS) return true;
+    }
+
+    // 3: recently disconnected sessions
+    for (const [tag, disconnectedAt] of this.recentDisconnects) {
+      if (now - disconnectedAt < DC_GRACE_MS) return true;
+      // Expired — prune
+      this.recentDisconnects.delete(tag);
+    }
+
+    return false;
   }
 
   // ---- Push notifications ----

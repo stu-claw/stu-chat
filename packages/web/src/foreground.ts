@@ -1,18 +1,37 @@
 /**
- * Foreground/background detection — notifies the ConnectionDO via WebSocket
- * so it knows whether to send push notifications.
+ * Foreground/background detection & channel-level focus tracking.
+ *
+ * Notifies the ConnectionDO via WebSocket so it knows whether to send push
+ * notifications and which session the user is currently viewing.
  */
 
 import { Capacitor } from "@capacitor/core";
 import type { BotsChatWSClient } from "./ws";
 import { dlog } from "./debug-log";
 
-export function setupForegroundDetection(
+export interface ForegroundOptions {
+  wsClient: BotsChatWSClient;
+  getActiveSessionKey: () => string | null;
+  onResume?: () => void;
+}
+
+/**
+ * Send a focus.update message when the user switches channels/sessions
+ * while already in the foreground.
+ */
+export function sendFocusUpdate(
   wsClient: BotsChatWSClient,
-  onResume?: () => void,
-): () => void {
+  sessionKey: string | null,
+): void {
+  wsClient.send({ type: "focus.update", sessionKey });
+  dlog.info("Foreground", `Focus updated: ${sessionKey ?? "(none)"}`);
+}
+
+export function setupForegroundDetection(opts: ForegroundOptions): () => void {
+  const { wsClient, getActiveSessionKey, onResume } = opts;
+
   const notifyForeground = () => {
-    wsClient.send({ type: "foreground.enter" });
+    wsClient.send({ type: "foreground.enter", sessionKey: getActiveSessionKey() });
     onResume?.();
     dlog.info("Foreground", "Entered foreground");
   };

@@ -14,7 +14,7 @@ import { getToken, setToken, setRefreshToken, agentsApi, channelsApi, tasksApi, 
 import { ModelSelect } from "./components/ModelSelect";
 import { BotsChatWSClient, type WSMessage } from "./ws";
 import { initPushNotifications, getPendingPushNav, clearPendingPushNav } from "./push";
-import { setupForegroundDetection } from "./foreground";
+import { setupForegroundDetection, sendFocusUpdate } from "./foreground";
 import { IconRail } from "./components/IconRail";
 import { Sidebar } from "./components/Sidebar";
 import { ChatWindow } from "./components/ChatWindow";
@@ -530,6 +530,14 @@ export default function App() {
     return () => { stale = true; };
   }, [state.user, state.selectedSessionKey, e2eReady, foregroundResumeCount]);
 
+  // ---- Notify ConnectionDO when the viewed session changes ----
+  useEffect(() => {
+    const client = wsClientRef.current;
+    if (client?.connected) {
+      sendFocusUpdate(client, state.selectedSessionKey);
+    }
+  }, [state.selectedSessionKey]);
+
   // Keep a ref to state for use in WS handler (avoids stale closures)
   const stateRef = useRef(state);
   useEffect(() => {
@@ -903,8 +911,10 @@ export default function App() {
       .catch((err) => {
         dlog.warn("Push", `Push init failed: ${err}`);
       });
-    const cleanupForeground = setupForegroundDetection(client, () => {
-      setForegroundResumeCount((c) => c + 1);
+    const cleanupForeground = setupForegroundDetection({
+      wsClient: client,
+      getActiveSessionKey: () => stateRef.current.selectedSessionKey,
+      onResume: () => setForegroundResumeCount((c) => c + 1),
     });
 
     return () => {
