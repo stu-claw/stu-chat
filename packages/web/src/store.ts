@@ -15,6 +15,10 @@ export type ChatMessage = {
   /** Tracks which action blocks have been resolved, keyed by prompt hash */
   resolvedActions?: Record<string, { value: string; label: string }>;
   isEncryptedLocked?: boolean;
+  /** Whether the message text was E2E encrypted (bitmask from API: bit0=text, bit1=media) */
+  encrypted?: boolean | number;
+  /** Whether the media binary was E2E encrypted (derived from sender + encrypted flag) */
+  mediaEncrypted?: boolean;
 };
 
 export type ActiveView = "messages" | "automations";

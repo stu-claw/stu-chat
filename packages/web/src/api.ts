@@ -291,7 +291,8 @@ export type MessageRecord = {
   mediaUrl?: string;
   a2ui?: string;
   threadId?: string;
-  encrypted?: boolean;
+  encrypted?: boolean | number;
+  mediaEncrypted?: boolean;
 };
 
 export const messagesApi = {

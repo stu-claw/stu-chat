@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { Env } from "./env.js";
-import { authMiddleware, verifyToken, getJwtSecret, verifyMediaSignature } from "./utils/auth.js";
+import { authMiddleware, verifyToken, getJwtSecret, verifyMediaSignature, signMediaUrl } from "./utils/auth.js";
+import { randomUUID } from "./utils/uuid.js";
 import { auth } from "./routes/auth.js";
 import { agents } from "./routes/agents.js";
 import { channels } from "./routes/channels.js";
@@ -475,6 +476,53 @@ app.get("/api/messages/:userId", async (c) => {
   url.pathname = "/messages";
   // Forward query params (sessionKey, threadId, limit)
   return stub.fetch(new Request(url.toString()));
+});
+
+// ---- Plugin upload (pairing token auth) ----
+app.post("/api/plugin-upload", async (c) => {
+  const token = c.req.header("X-Pairing-Token");
+  if (!token) {
+    return c.json({ error: "Missing X-Pairing-Token header" }, 401);
+  }
+  const row = await c.env.DB.prepare(
+    "SELECT user_id FROM pairing_tokens WHERE token = ? AND revoked_at IS NULL",
+  )
+    .bind(token)
+    .first<{ user_id: string }>();
+  if (!row) {
+    return c.json({ error: "Invalid pairing token" }, 401);
+  }
+
+  const userId = row.user_id;
+  const contentType = c.req.header("Content-Type") ?? "";
+  if (!contentType.includes("multipart/form-data")) {
+    return c.json({ error: "Expected multipart/form-data" }, 400);
+  }
+
+  const formData = await c.req.formData();
+  const file = formData.get("file") as File | null;
+  if (!file) {
+    return c.json({ error: "No file provided" }, 400);
+  }
+
+  const MAX_SIZE = 20 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    return c.json({ error: "File too large (max 20 MB)" }, 413);
+  }
+
+  const fileType = file.type || "application/octet-stream";
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "bin";
+  const safeExt = /^[a-z0-9]{1,5}$/.test(ext) ? ext : "bin";
+  const filename = `${Date.now()}-${randomUUID().slice(0, 8)}.${safeExt}`;
+  const key = `media/${userId}/${filename}`;
+
+  await c.env.MEDIA.put(key, file.stream(), {
+    httpMetadata: { contentType: fileType },
+  });
+
+  const secret = getJwtSecret(c.env);
+  const url = await signMediaUrl(userId, filename, secret, 3600);
+  return c.json({ url, key });
 });
 
 // ---- Protected routes (require Bearer token) — AFTER ws routes ----

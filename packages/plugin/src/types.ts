@@ -58,6 +58,7 @@ export type CloudOutbound =
       replyToId?: string;
       threadId?: string;
       encrypted?: boolean;
+      mediaEncrypted?: boolean;
       messageId?: string;
       notifyPreview?: string;
     }

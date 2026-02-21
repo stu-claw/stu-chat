@@ -328,15 +328,18 @@ export class ConnectionDO implements DurableObject {
 
       // For agent.media, cache external images to R2 so they remain accessible
       // even after the original URL expires (e.g. DALL-E temporary URLs).
+      // Skip caching if the plugin already uploaded E2E-encrypted media.
       let persistedMediaUrl = msg.mediaUrl as string | undefined;
-      if (msg.type === "agent.media" && persistedMediaUrl) {
+      if (msg.type === "agent.media" && persistedMediaUrl && !msg.mediaEncrypted) {
         const cachedUrl = await this.cacheExternalMedia(persistedMediaUrl);
         if (cachedUrl) {
           persistedMediaUrl = cachedUrl;
-          // Update the message object so browsers get the cached URL
           msg.mediaUrl = cachedUrl;
         }
       }
+
+      // Bitmask: bit 0 = text encrypted, bit 1 = media encrypted
+      const encryptedBits = (msg.encrypted ? 1 : 0) | (msg.mediaEncrypted ? 2 : 0);
 
       await this.persistMessage({
         id: msg.messageId as string | undefined,
@@ -346,7 +349,7 @@ export class ConnectionDO implements DurableObject {
         text: (msg.text ?? msg.caption ?? "") as string,
         mediaUrl: persistedMediaUrl,
         a2ui: msg.jsonl as string | undefined,
-        encrypted: msg.encrypted ? 1 : 0,
+        encrypted: encryptedBits,
       });
     }
 
@@ -1114,15 +1117,21 @@ export class ConnectionDO implements DurableObject {
           if (mediaUrl) {
             mediaUrl = await this.refreshMediaUrl(mediaUrl, secret);
           }
+          const encBits = (row.encrypted as number) ?? 0;
+          // Derive mediaEncrypted:
+          // - User messages with encrypted=1: media was always encrypted by browser
+          // - Any message with bit 1 set (encrypted >= 2): media was E2E encrypted
+          const mediaEncrypted = (row.sender === "user" && encBits >= 1) || (encBits & 2) !== 0;
           return {
             id: row.id,
             sender: row.sender,
             text: row.text ?? "",
-            timestamp: ((row.created_at as number) ?? 0) * 1000, // unix seconds → ms
+            timestamp: ((row.created_at as number) ?? 0) * 1000,
             mediaUrl,
             a2ui: row.a2ui ?? undefined,
             threadId: row.thread_id ?? undefined,
-            encrypted: row.encrypted ?? 0,
+            encrypted: encBits,
+            mediaEncrypted,
           };
         }),
       );

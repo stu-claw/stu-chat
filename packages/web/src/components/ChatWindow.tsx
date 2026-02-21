@@ -461,6 +461,8 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
       text: trimmed,
       timestamp: Date.now(),
       mediaUrl,
+      encrypted: E2eService.hasKey(),
+      mediaEncrypted: !!mediaUrl && E2eService.hasKey(),
     };
 
     dispatch({ type: "ADD_MESSAGE", message: msg });
@@ -1061,7 +1063,7 @@ function MessageRow({
             text={msg.text}
             mediaUrl={msg.mediaUrl}
             messageId={msg.id}
-            encrypted={!!msg.mediaUrl && E2eService.hasKey()}
+            encrypted={!!msg.mediaEncrypted && !!msg.mediaUrl && E2eService.hasKey()}
             a2ui={msg.a2ui}
             isStreaming={msg.isStreaming}
             onAction={onAction}

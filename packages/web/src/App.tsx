@@ -696,6 +696,7 @@ export default function App() {
             text: msg.text as string,
             timestamp: Date.now(),
             threadId,
+            encrypted: !!msg.encrypted,
           };
           if (threadId && sessionKey) {
             dispatch({ type: "ADD_THREAD_MESSAGE", message: chatMsg });
@@ -714,6 +715,8 @@ export default function App() {
             mediaUrl: msg.mediaUrl as string,
             timestamp: Date.now(),
             threadId,
+            encrypted: !!msg.encrypted,
+            mediaEncrypted: !!msg.mediaEncrypted,
           };
           if (threadId && sessionKey) {
             dispatch({ type: "ADD_THREAD_MESSAGE", message: mediaMsg });

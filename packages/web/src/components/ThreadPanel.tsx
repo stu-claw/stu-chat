@@ -216,6 +216,8 @@ export function ThreadPanel({ sendMessage }: ThreadPanelProps) {
                 <MessageContent
                   text={parentMessage.text}
                   mediaUrl={parentMessage.mediaUrl}
+                  messageId={parentMessage.id}
+                  encrypted={!!parentMessage.mediaEncrypted && !!parentMessage.mediaUrl && E2eService.hasKey()}
                   a2ui={parentMessage.a2ui}
                   onAction={handleA2UIAction}
                   onResolveAction={(value, label) => handleResolveAction(parentMessage.id, value, label)}
@@ -274,6 +276,8 @@ export function ThreadPanel({ sendMessage }: ThreadPanelProps) {
                   <MessageContent
                     text={msg.text}
                     mediaUrl={msg.mediaUrl}
+                    messageId={msg.id}
+                    encrypted={!!msg.mediaEncrypted && !!msg.mediaUrl && E2eService.hasKey()}
                     a2ui={msg.a2ui}
                     isStreaming={msg.isStreaming}
                     onAction={handleA2UIAction}
