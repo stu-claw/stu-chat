@@ -149,7 +149,5 @@ class AgentRegistry {
 // Singleton instance
 export const agentRegistry = new AgentRegistry();
 
-// Cleanup interval (every 5 minutes)
-setInterval(() => {
-  agentRegistry.cleanup();
-}, 5 * 60 * 1000);
+// Note: Cleanup is triggered manually via API call or on first request
+// Cloudflare Workers don't support setInterval at global scope

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useAppState, useAppDispatch } from "../store";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Group, Panel } from "react-resizable-panels";
+import { ResizeHandle } from "./ResizeHandle";
 
 const AGENT_ACCENTS = [
   "#22d3ee",
@@ -220,9 +221,9 @@ export function DeckView() {
             </div>
 
             {/* Split Pane: Chat (top) / Terminal (bottom) */}
-            <PanelGroup direction="vertical" className="flex-1">
+            <Group orientation="vertical" className="flex-1">
               {/* Top: Chat */}
-              <Panel defaultSize={60} minSize={30}>
+              <Panel id={`${agent.id}-chat`} defaultSize={60} minSize={30}>
                 <div className="flex flex-col h-full overflow-hidden">
                   {/* Messages */}
                   <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
@@ -288,10 +289,10 @@ export function DeckView() {
               </Panel>
 
               {/* Resize Handle */}
-              <PanelResizeHandle className="h-1 hover:h-2 transition-all" style={{ backgroundColor: "var(--border)" }} />
+              <ResizeHandle direction="horizontal" />
 
               {/* Bottom: Terminal/Logs */}
-              <Panel defaultSize={40} minSize={20}>
+              <Panel id={`${agent.id}-terminal`} defaultSize={40} minSize={20}>
                 <div className="flex flex-col h-full overflow-hidden" style={{ backgroundColor: "var(--bg-surface)" }}>
                   {/* Terminal Header */}
                   <div className="flex items-center justify-between px-3 py-1.5 border-b text-xs" style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}>
@@ -322,7 +323,7 @@ export function DeckView() {
                   </div>
                 </div>
               </Panel>
-            </PanelGroup>
+            </Group>
           </div>
         ))}
       </div>
