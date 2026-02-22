@@ -10,7 +10,9 @@ BotsChat gives you a modern, Slack-like web UI to interact with your OpenClaw ag
 
 <div align="center">
 
-https://github.com/user-attachments/assets/3f278ca0-c314-4103-8338-951531753e06
+https://github.com/user-attachments/assets/e727ef9e-53b9-40d4-b943-c02019588203
+
+[▶ Watch in HD on YouTube](https://www.youtube.com/watch?v=_ifqYhoV7Jk)
 
 </div>
 
