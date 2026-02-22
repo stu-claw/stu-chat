@@ -6,24 +6,6 @@
     <script>
       (function(){var s=localStorage.getItem("botschat_theme");var t=s==="light"||s==="dark"?s:window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";document.documentElement.setAttribute("data-theme",t)})();
     </script>
-    <script>
-      // Force clear old service workers and caches from development
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          registrations.forEach(function(registration) {
-            console.log('[SW Cleanup] Unregistering:', registration.scope);
-            registration.unregister();
-          });
-        });
-        caches.keys().then(function(cacheNames) {
-          cacheNames.forEach(function(cacheName) {
-            console.log('[SW Cleanup] Deleting cache:', cacheName);
-            caches.delete(cacheName);
-          });
-        });
-      }
-    </script>
-
     <!-- PWA manifest -->
     <link rel="manifest" href="/manifest.json" />
 

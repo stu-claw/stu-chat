@@ -103,7 +103,9 @@ async function hmacSign(secret: string, data: string): Promise<string> {
 
 // ---- Password hashing (PBKDF2 with migration support) ----
 
-const PBKDF2_ITERATIONS = 600_000; // OWASP 2023 recommendation
+// Cloudflare runtime currently caps PBKDF2 iterations at 100k.
+// Keep this within runtime limits to avoid login-time NotSupportedError.
+const PBKDF2_ITERATIONS = 100_000;
 const SALT_LENGTH = 16; // 128-bit salt
 
 function toHex(buf: ArrayBuffer): string {
@@ -187,12 +189,18 @@ export async function verifyPassword(
     false,
     ["deriveBits"],
   );
-  const derived = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
-    keyMaterial,
-    256,
-  );
-  const computedHash = toHex(derived);
+  let computedHash: string;
+  try {
+    const derived = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+      keyMaterial,
+      256,
+    );
+    computedHash = toHex(derived);
+  } catch {
+    // Invalid or unsupported PBKDF2 params should fail auth, not 500.
+    return { valid: false, needsRehash: false };
+  }
 
   const valid = computedHash === expectedHash;
   // If using fewer iterations than current standard, suggest rehash

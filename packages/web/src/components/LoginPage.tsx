@@ -75,13 +75,32 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    
+    // Client-side validation
+    if (!email.trim() || !password.trim()) {
+      setError("Email and password are required");
+      return;
+    }
+    if (isRegister && !displayName.trim()) {
+      setError("Display name is required for registration");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      setError("Password must contain both letters and numbers");
+      return;
+    }
+    
     setLoading(true);
 
     try {
       let res;
       if (isRegister) {
         dlog.info("Auth", `Registering new account: ${email}`);
-        res = await authApi.register(email, password, displayName || undefined);
+        res = await authApi.register(email, password, displayName.trim());
       } else {
         dlog.info("Auth", `Logging in: ${email}`);
         res = await authApi.login(email, password);

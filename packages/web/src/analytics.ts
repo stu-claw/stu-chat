@@ -21,7 +21,14 @@ function loadGtag(): boolean {
     window.dataLayer.push(arguments);
   };
   window.gtag("js", new Date());
-  window.gtag("config", MEASUREMENT_ID);
+  window.gtag("config", MEASUREMENT_ID, {
+    // workers.dev is a public suffix; forcing host cookie avoids invalid-domain warnings.
+    cookie_domain: window.location.hostname,
+    // We send SPA page views manually via gtagPageView().
+    send_page_view: false,
+    // Avoid noisy cookie expiration rewrites on each page hit.
+    cookie_update: false,
+  });
 
   const script = document.createElement("script");
   script.async = true;

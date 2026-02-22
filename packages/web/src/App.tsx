@@ -209,9 +209,26 @@ export default function App() {
           setToken(null);
           setRefreshToken(null);
         });
-    } else if (import.meta.env.VITE_DEBUG_AUTO_LOGIN && !Capacitor.isNativePlatform()) {
+    } else if (
+      import.meta.env.DEV &&
+      import.meta.env.VITE_DEBUG_AUTO_LOGIN &&
+      !Capacitor.isNativePlatform()
+    ) {
       // Debug auto-login: skip login screen in simulator/browser dev mode only.
       // Real devices use normal Google OAuth login.
+      const host = window.location.hostname;
+      const isLocalOrLanHost =
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host) ||
+        /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host) ||
+        /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
+
+      if (!isLocalOrLanHost) {
+        dlog.info("Auth", "Skipping debug auto-login on non-local host");
+        return;
+      }
+
       const debugEmail = import.meta.env.VITE_DEBUG_AUTO_LOGIN_EMAIL as string | undefined;
       const apiBase = import.meta.env.VITE_DEBUG_API_BASE as string | undefined;
       if (debugEmail) {
