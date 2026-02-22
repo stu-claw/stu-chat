@@ -1,7 +1,7 @@
 // Minimal service worker for PWA installability + Push notifications.
 // Caches the app shell on install for faster startup.
 
-const CACHE_NAME = "stu-v2";
+const CACHE_NAME = "stu-v3";
 const SHELL_URLS = ["/"];
 
 self.addEventListener("install", (event) => {
@@ -12,15 +12,25 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  // Clean up old caches
+  // Clean up ALL old caches aggressively
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+        keys.map((k) => {
+          console.log('[SW] Deleting old cache:', k);
+          return caches.delete(k);
+        })
       )
     )
   );
   self.clients.claim();
+});
+
+// Force activate immediately when a new SW is waiting
+self.addEventListener("message", (event) => {
+  if (event.data === "skipWaiting") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {

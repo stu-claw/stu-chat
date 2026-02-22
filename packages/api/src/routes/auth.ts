@@ -6,6 +6,42 @@ import { generateId } from "../utils/id.js";
 
 const auth = new Hono<{ Bindings: Env }>();
 
+const DEV_TEST_USER = {
+  id: "u_spencer_test",
+  email: "spencer@r2capital.ca",
+  displayName: "Spencer",
+  password: "12345678",
+} as const;
+
+async function ensureDevTestUser(c: { env: Env }) {
+  if (c.env.ENVIRONMENT !== "development") return;
+
+  const passwordHash = await hashPassword(DEV_TEST_USER.password);
+  const existing = await c.env.DB.prepare("SELECT id FROM users WHERE email = ?")
+    .bind(DEV_TEST_USER.email)
+    .first<{ id: string }>();
+
+  if (existing) {
+    await c.env.DB.prepare(
+      "UPDATE users SET password_hash = ?, display_name = ?, auth_provider = 'email', updated_at = unixepoch() WHERE id = ?",
+    )
+      .bind(passwordHash, DEV_TEST_USER.displayName, existing.id)
+      .run();
+    return;
+  }
+
+  await c.env.DB.prepare(
+    "INSERT INTO users (id, email, password_hash, display_name, auth_provider) VALUES (?, ?, ?, ?, 'email')",
+  )
+    .bind(
+      DEV_TEST_USER.id,
+      DEV_TEST_USER.email,
+      passwordHash,
+      DEV_TEST_USER.displayName,
+    )
+    .run();
+}
+
 /** POST /api/auth/register — disabled in production (OAuth only) */
 auth.post("/register", async (c) => {
   if (c.env.ENVIRONMENT !== "development") {
@@ -83,11 +119,19 @@ auth.post("/login", async (c) => {
     return c.json({ error: "Invalid email or password" }, 401);
   }
 
+  const normalizedEmail = email.trim().toLowerCase();
+  if (
+    normalizedEmail === DEV_TEST_USER.email &&
+    password === DEV_TEST_USER.password
+  ) {
+    await ensureDevTestUser(c);
+  }
+
   // Fetch user with password hash — we now verify in application code
   const row = await c.env.DB.prepare(
     "SELECT id, email, display_name, password_hash FROM users WHERE email = ?",
   )
-    .bind(email.trim().toLowerCase())
+    .bind(normalizedEmail)
     .first<{ id: string; email: string; display_name: string | null; password_hash: string }>();
 
   if (!row || !row.password_hash) {
