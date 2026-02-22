@@ -35,10 +35,11 @@ export class BotsChatWSClient {
   connect(): void {
     this.intentionalClose = false;
 
-    // In Capacitor (native app), WebView runs from capacitor:// so we must
-    // use the full production WebSocket URL.
+    // In native apps (Capacitor or macOS), the WebView runs from a custom
+    // scheme so we must use the full production WebSocket URL.
+    const isNative = Capacitor.isNativePlatform() || !!(window as any).__BOTSCHAT_NATIVE__;
     let url: string;
-    if (Capacitor.isNativePlatform()) {
+    if (isNative) {
       url = `wss://console.botschat.app/api/ws/${this.opts.userId}/${this.opts.sessionId}`;
     } else {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
