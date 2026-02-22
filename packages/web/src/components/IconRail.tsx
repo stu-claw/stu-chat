@@ -38,9 +38,9 @@ export function IconRail({ onToggleTheme, onOpenSettings, theme }: IconRailProps
       {/* Workspace icon */}
       <button
         className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden hover:rounded-xl transition-all"
-        title="BotsChat"
+        title="Stu"
       >
-        <img src="/botschat-logo.png" alt="BotsChat" className={`w-8 h-8 ${theme === "dark" ? "invert" : ""}`} />
+        <img src="/botschat-icon.svg" alt="Stu" className="w-8 h-8" />
       </button>
 
       <div className="w-7 border-t my-1" style={{ borderColor: "var(--sidebar-divider)" }} />

@@ -248,7 +248,18 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
     } catch { /* ignore */ }
   }, [sessionKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const currentModel = state.sessionModel ?? state.defaultModel;
+  // Prefer Kimi K2.5 as default when no session override is set
+  // IMPORTANT: Must use full model ID format "provider/model-id" for OpenClaw routing
+  const preferredDefaultModel = useMemo(() => {
+    if (state.sessionModel) return state.sessionModel;
+    // Hardcode the full Moonshot Kimi K2.5 model ID (required format for OpenClaw)
+    const FULL_KIMI_MODEL_ID = "moonshot/kimi-k2.5";
+    // Check if this model exists in available models
+    const hasKimi = state.models.some((m) => m.id === FULL_KIMI_MODEL_ID);
+    return hasKimi ? FULL_KIMI_MODEL_ID : state.defaultModel;
+  }, [state.sessionModel, state.defaultModel, state.models]);
+
+  const currentModel = preferredDefaultModel;
 
   const modelDisplayText = useMemo(() => {
     if (!currentModel) return null;
@@ -475,6 +486,7 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
       text: trimmed,
       userId: state.user?.id ?? "",
       messageId: msg.id,
+      model: currentModel, // Include selected model so OpenClaw routes correctly
       ...(mediaUrl ? { mediaUrl } : {}),
     });
 
@@ -528,11 +540,12 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
       text: action,
       userId: state.user?.id ?? "",
       messageId: msg.id,
+      model: currentModel,
     });
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     });
-  }, [sessionKey, state.user?.id, sendMessage, dispatch]);
+  }, [sessionKey, state.user?.id, sendMessage, dispatch, currentModel]);
 
   /** Handle ActionCard resolve — marks widget done + sends the choice as user message */
   const handleResolveAction = useCallback((messageId: string, value: string, label: string) => {
@@ -560,11 +573,12 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
       text: label,
       userId: state.user?.id ?? "",
       messageId: msg.id,
+      model: currentModel,
     });
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     });
-  }, [sessionKey, state.user?.id, sendMessage, dispatch]);
+  }, [sessionKey, state.user?.id, sendMessage, dispatch, currentModel]);
 
   /** Stop the current streaming response — sends /stop as a user message */
   const handleStop = useCallback(() => {
@@ -595,6 +609,7 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
       text: "/stop",
       userId: state.user?.id ?? "",
       messageId: msg.id,
+      model: currentModel,
     });
 
     recordSkillUsage("/stop");
@@ -603,7 +618,7 @@ export function ChatWindow({ sendMessage }: ChatWindowProps) {
     requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     });
-  }, [sessionKey, state.streamingRunId, state.streamingThreadId, state.user?.id, sendMessage, dispatch]);
+  }, [sessionKey, state.streamingRunId, state.streamingThreadId, state.user?.id, sendMessage, dispatch, currentModel]);
 
   const selectedAgent = state.agents.find((a) => a.id === state.selectedAgentId);
   const channelName = selectedAgent?.name ?? "channel";

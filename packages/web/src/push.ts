@@ -140,7 +140,7 @@ export function notifyIfBackground(msg: {
   if (!window.__BOTSCHAT_NATIVE_NOTIFY__) return;
 
   let body = "";
-  const title = msg.agentName || "BotsChat";
+  const title = msg.agentName || "Stu";
 
   if (msg.type === "agent.text" && msg.text) {
     body = msg.text.length > 200 ? msg.text.slice(0, 200) + "…" : msg.text;

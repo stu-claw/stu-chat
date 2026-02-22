@@ -11,7 +11,7 @@ import { dlog } from "./debug-log";
  */
 const isNative = Capacitor.isNativePlatform() || !!(window as any).__BOTSCHAT_NATIVE__;
 const SERVER_URL = isNative
-  ? "https://console.botschat.app"
+  ? "https://stu.spencer-859.workers.dev"
   : "";
 
 const API_BASE = `${SERVER_URL}/api`;

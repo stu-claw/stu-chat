@@ -23,7 +23,9 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Production CORS origins
 const PRODUCTION_ORIGINS = [
+  "https://stu.spencer-859.workers.dev",
   "https://console.botschat.app",
+  "https://stu.app",
   "https://botschat.app",
   "https://botschat-api.auxtenwpc.workers.dev",
   "capacitor://localhost",  // iOS Capacitor app
@@ -70,7 +72,7 @@ app.use("/*", async (c, next) => {
   c.res = new Response(c.res.body, c.res);
   c.res.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' https://apis.google.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://*.r2.dev https://*.cloudflarestorage.com data: blob:; connect-src 'self' wss://*.botschat.app wss://console.botschat.app https://apis.google.com https://*.googleapis.com; frame-src https://accounts.google.com https://*.firebaseapp.com",
+    "default-src 'self'; script-src 'self' https://apis.google.com https://*.firebaseapp.com; style-src 'self' 'unsafe-inline'; img-src 'self' https://*.r2.dev https://*.cloudflarestorage.com data: blob:; connect-src 'self' wss://*.workers.dev wss://*.botschat.app wss://console.botschat.app https://apis.google.com https://*.googleapis.com; frame-src https://accounts.google.com https://*.firebaseapp.com",
   );
   c.res.headers.set("X-Content-Type-Options", "nosniff");
   c.res.headers.set("X-Frame-Options", "DENY");

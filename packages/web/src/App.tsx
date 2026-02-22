@@ -637,8 +637,30 @@ export default function App() {
             defaultModel: (msg.defaultModel as string) || undefined,
           });
           // Models are delivered alongside connection.status
+          // Normalize model IDs to include provider prefix (e.g., "kimi-k2.5" -> "moonshot/kimi-k2.5")
           if (Array.isArray(msg.models) && msg.models.length > 0) {
-            dispatch({ type: "SET_MODELS", models: msg.models as ModelInfo[] });
+            const normalizedModels = (msg.models as ModelInfo[]).map((m) => {
+              // If model ID already has provider prefix, keep it
+              if (m.id.includes("/")) return m;
+              // Map known models to their full provider/model-id format
+              const providerMap: Record<string, string> = {
+                "kimi-k2.5": "moonshot",
+                "kimi-k1.5": "moonshot",
+                "gpt-4.1": "openai",
+                "gpt-4.1-mini": "openai",
+                "gpt-4o": "openai",
+                "o3": "openai",
+                "claude-opus-4-6": "anthropic",
+                "claude-sonnet-4-20250514": "anthropic",
+                "gemini-2.0-flash": "google",
+                "gemini-2.5-pro": "google",
+                "gemini-2.5-flash": "google",
+                "MiniMax-M2.5": "minimax",
+              };
+              const provider = providerMap[m.id] || "openai"; // fallback to openai
+              return { ...m, id: `${provider}/${m.id}` };
+            });
+            dispatch({ type: "SET_MODELS", models: normalizedModels });
           }
           break;
 
@@ -874,6 +896,17 @@ export default function App() {
             // TODO: could revert optimistic update here
           }
           break;
+
+        case "session.renamed": {
+          // Auto-generated title update from backend
+          const renamedSessionId = msg.sessionId as string;
+          const newName = msg.newName as string;
+          if (renamedSessionId && newName) {
+            dlog.info("Session", `Auto-renamed to: "${newName}"`);
+            dispatch({ type: "RENAME_SESSION", sessionId: renamedSessionId, name: newName });
+          }
+          break;
+        }
 
         case "error":
           dlog.error("Server", msg.message as string, msg);

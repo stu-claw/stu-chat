@@ -75,7 +75,7 @@ export function ConnectionSettings() {
   const [loadingTokens, setLoadingTokens] = useState(true);
 
   const [cloudUrl, setCloudUrl] = useState<string>(
-    typeof window !== "undefined" ? window.location.origin : "https://console.botschat.app",
+    typeof window !== "undefined" ? window.location.origin : "https://stu.spencer-859.workers.dev",
   );
   const [cloudUrlLoopback, setCloudUrlLoopback] = useState(false);
   const [cloudUrlHint, setCloudUrlHint] = useState<string | undefined>();

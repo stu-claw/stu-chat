@@ -20,4 +20,6 @@ export type Env = {
   APNS_KEY_ID?: string;
   /** Apple Developer Team ID (e.g. "C5N5PPC329"). */
   APNS_TEAM_ID?: string;
+  /** Google Gemini API key for auto-generating session titles (stored via `wrangler secret put GEMINI_API_KEY`). */
+  GEMINI_API_KEY?: string;
 };

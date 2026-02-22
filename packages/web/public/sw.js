@@ -136,7 +136,7 @@ self.addEventListener("push", (event) => {
     const isEncrypted = payload.encrypted === "1";
     const messageId = payload.messageId || "";
 
-    let title = "BotsChat";
+    let title = "Stu";
     let body = "New message";
 
     if (isEncrypted && messageId && payload.text) {
@@ -186,7 +186,7 @@ self.addEventListener("notificationclick", (event) => {
       .then((windowClients) => {
         for (const client of windowClients) {
           if (
-            client.url.includes("console.botschat.app") ||
+            client.url.includes("stu.spencer-859.workers.dev") ||
             client.url.includes("localhost")
           ) {
             if (sessionKey) {
@@ -197,8 +197,8 @@ self.addEventListener("notificationclick", (event) => {
         }
         // No existing window — open a new one with the sessionKey hint
         const url = sessionKey
-          ? "https://console.botschat.app/?push_session=" + encodeURIComponent(sessionKey)
-          : "https://console.botschat.app";
+          ? "https://stu.spencer-859.workers.dev/?push_session=" + encodeURIComponent(sessionKey)
+          : "https://stu.spencer-859.workers.dev";
         return clients.openWindow(url);
       })
   );

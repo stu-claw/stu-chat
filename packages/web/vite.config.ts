@@ -11,7 +11,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       "/api": {
-        target: "https://console.botschat.app",
+        target: "https://stu.spencer-859.workers.dev",
         changeOrigin: true,
         ws: true,
       },

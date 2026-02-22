@@ -42,7 +42,7 @@ export function DataConsentModal({ onAccept }: DataConsentModalProps) {
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
             <h1 className="text-h1 font-bold" style={{ color: "var(--text-primary)" }}>
-              How Your Data Works in BotsChat
+              How Your Data Works in Stu
             </h1>
           </div>
           <p className="text-caption" style={{ color: "var(--text-muted)" }}>
@@ -65,9 +65,9 @@ export function DataConsentModal({ onAccept }: DataConsentModalProps) {
               }
               title="Message Relay"
             >
-              BotsChat acts as a WebSocket relay between your browser and your own
+              Stu acts as a WebSocket relay between your browser and your own
               OpenClaw AI gateway. Messages you send are transmitted through
-              BotsChat Cloud to reach your gateway.
+              Stu Cloud to reach your gateway.
             </Section>
 
             {/* E2E Encryption */}
@@ -104,7 +104,7 @@ export function DataConsentModal({ onAccept }: DataConsentModalProps) {
             >
               AI processing happens on your OpenClaw gateway using AI services
               you configure (such as OpenAI, Anthropic, Google, Azure, etc.).
-              BotsChat does not choose or control which AI service processes your
+              Stu does not choose or control which AI service processes your
               data.
             </Section>
 
@@ -118,7 +118,7 @@ export function DataConsentModal({ onAccept }: DataConsentModalProps) {
               title="Your API Keys"
             >
               Your API keys are stored on your OpenClaw gateway machine and never
-              pass through BotsChat Cloud.
+              pass through Stu Cloud.
             </Section>
 
             {/* Third-Party Services */}
@@ -132,7 +132,7 @@ export function DataConsentModal({ onAccept }: DataConsentModalProps) {
               }
               title="Third-Party Services"
             >
-              BotsChat Cloud uses Cloudflare for hosting, database, and media
+              Stu Cloud uses Cloudflare for hosting, database, and media
               storage. Authentication is provided by Google and GitHub OAuth. No
               data is sold or shared with advertisers.
             </Section>
@@ -147,7 +147,7 @@ export function DataConsentModal({ onAccept }: DataConsentModalProps) {
               </h3>
               <ul className="space-y-2">
                 <AgreementItem>
-                  Messages sent through BotsChat may be processed by third-party
+                  Messages sent through Stu may be processed by third-party
                   AI services configured in your OpenClaw gateway
                 </AgreementItem>
                 <AgreementItem>

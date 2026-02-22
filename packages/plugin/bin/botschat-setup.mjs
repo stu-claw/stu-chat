@@ -5,14 +5,14 @@
  *
  * Usage:
  *   botschat-setup                                     # Interactive mode
- *   botschat-setup --url https://console.botschat.app --token bc_pat_xxx   # Non-interactive
- *   botschat-setup --url https://console.botschat.app --email me@x.com --password xxx
+ *   botschat-setup --url https://stu.spencer-859.workers.dev --token bc_pat_xxx   # Non-interactive
+ *   botschat-setup --url https://stu.spencer-859.workers.dev --email me@x.com --password xxx
  */
 
 import { execFileSync } from "node:child_process";
 import { createInterface } from "node:readline";
 
-const DEFAULT_URL = "https://console.botschat.app";
+const DEFAULT_URL = "https://stu.spencer-859.workers.dev";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -133,7 +133,7 @@ async function main() {
     botschat-setup                                        Interactive setup
     botschat-setup --token bc_pat_xxx                     Use existing token
     botschat-setup --email me@x.com --password xxx        Login and setup
-    botschat-setup --url https://console.botschat.app --token ... Custom server
+    botschat-setup --url https://stu.spencer-859.workers.dev --token ... Custom server
 
   Options:
     --url       BotsChat server URL (default: ${DEFAULT_URL})

@@ -101,7 +101,7 @@ class WebViewManager: NSObject, ObservableObject {
         contentController.addUserScript(scrollFix)
 
         let webView = WKWebView(frame: .zero, configuration: config)
-        webView.customUserAgent = "BotsChatMac/1.0"
+        webView.customUserAgent = "StuMac/1.0"
 
         if #available(macOS 13.3, *) {
             webView.isInspectable = true
@@ -133,7 +133,7 @@ class WebViewManager: NSObject, ObservableObject {
         // all work naturally from an HTTPS origin.
         // For local dev, change this to e.g. "http://localhost:8787"
         let urlString = ProcessInfo.processInfo.environment["BOTSCHAT_URL"]
-            ?? "https://console.botschat.app"
+            ?? "https://stu.spencer-859.workers.dev"
 
         if let url = URL(string: urlString) {
             webView.load(URLRequest(url: url))
@@ -193,7 +193,8 @@ extension WebViewManager: WKUIDelegate {
                            host.contains("firebaseapp.com") ||
                            host.contains("firebaseauth.com") ||
                            host.contains("googleapis.com") ||
-                           host.hasSuffix(".botschat.app")
+                           host.hasSuffix(".botschat.app") ||
+                           host.hasSuffix(".workers.dev")
 
         if isAuthDomain {
             return openPopup(configuration: configuration, url: url)
@@ -253,7 +254,7 @@ extension WebViewManager: WKUIDelegate {
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let alert = NSAlert()
-        alert.messageText = "BotsChat"
+        alert.messageText = "Stu"
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.runModal()
@@ -263,7 +264,7 @@ extension WebViewManager: WKUIDelegate {
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "BotsChat"
+        alert.messageText = "Stu"
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.addButton(withTitle: "Cancel")
@@ -292,7 +293,7 @@ extension WebViewManager: WKScriptMessageHandler {
             return
         }
 
-        let title = dict["title"] as? String ?? "BotsChat"
+        let title = dict["title"] as? String ?? "Stu"
         let bodyText = dict["body"] as? String ?? ""
         let sessionKey = dict["sessionKey"] as? String
 

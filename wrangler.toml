@@ -1,4 +1,4 @@
-name = "botschat-api"
+name = "stu"
 main = "packages/api/src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -13,7 +13,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "botschat-db"
-database_id = "aa8dc50d-c839-44c2-a019-5818f0487be4"
+database_id = "426011d3-5a96-48d5-b745-a894dc6213b1"
 migrations_dir = "migrations"
 
 # --- R2 Bucket ---
@@ -33,7 +33,8 @@ new_sqlite_classes = ["ConnectionDO"]
 
 # --- Environment Variables ---
 [vars]
-ENVIRONMENT = "production"
+ENVIRONMENT = "development"
+DEV_AUTH_SECRET = "botschat-dev-secret-2026"
 # Firebase project ID for Google/GitHub Sign-In token verification.
 FIREBASE_PROJECT_ID = "botschat-130ff"
 # Google OAuth Client IDs — used to verify native iOS/Android Google Sign-In tokens.

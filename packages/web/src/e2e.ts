@@ -7,14 +7,14 @@ let currentKey: Uint8Array | null = null;
 let currentPassword: string | null = null;
 const listeners: Set<() => void> = new Set();
 
-// Try to restore cached key immediately (synchronous, no PBKDF2)
-try {
-  const cachedKey = localStorage.getItem(KEY_CACHE_KEY);
-  if (cachedKey) {
-    currentKey = fromBase64(cachedKey);
-    currentPassword = localStorage.getItem(STORAGE_KEY);
-  }
-} catch { /* ignore */ }
+// E2E auto-restore disabled by default — user must manually enable in settings
+// try {
+//   const cachedKey = localStorage.getItem(KEY_CACHE_KEY);
+//   if (cachedKey) {
+//     currentKey = fromBase64(cachedKey);
+//     currentPassword = localStorage.getItem(STORAGE_KEY);
+//   }
+// } catch { /* ignore */ }
 
 export const E2eService = {
   /**

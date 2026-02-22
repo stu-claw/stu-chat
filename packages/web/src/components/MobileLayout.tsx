@@ -113,7 +113,7 @@ export function MobileLayout({
   const getHeaderTitle = (): string => {
     switch (screen) {
       case "home":
-        return "BotsChat";
+        return "Stu";
       case "chat": {
         const agent = state.agents.find((a) => a.id === state.selectedAgentId);
         return `# ${agent?.name ?? "Chat"}`;
@@ -125,7 +125,7 @@ export function MobileLayout({
         return task?.name ?? "Task Detail";
       }
       default:
-        return "BotsChat";
+        return "Stu";
     }
   };
 

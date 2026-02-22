@@ -40,7 +40,7 @@ export class BotsChatWSClient {
     const isNative = Capacitor.isNativePlatform() || !!(window as any).__BOTSCHAT_NATIVE__;
     let url: string;
     if (isNative) {
-      url = `wss://console.botschat.app/api/ws/${this.opts.userId}/${this.opts.sessionId}`;
+      url = `wss://stu.spencer-859.workers.dev/api/ws/${this.opts.userId}/${this.opts.sessionId}`;
     } else {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       url = `${protocol}//${window.location.host}/api/ws/${this.opts.userId}/${this.opts.sessionId}`;
@@ -117,13 +117,11 @@ export class BotsChatWSClient {
         if (msg.type === "auth.ok") {
           dlog.info("WS", "Auth OK — connected");
           
-          // Try to load E2E password
-          const userId = msg.userId as string;
-          console.log(`[E2E-WS] auth.ok userId=${userId}, hasSavedPwd=${E2eService.hasSavedPassword()}`);
-          if (userId && E2eService.hasSavedPassword()) {
-              const loaded = await E2eService.loadSavedPassword(userId);
-              console.log(`[E2E-WS] loadSavedPassword result=${loaded}, hasKey=${E2eService.hasKey()}`);
-          }
+          // E2E auto-load disabled by default — user must manually enable in settings
+          // const userId = msg.userId as string;
+          // if (userId && E2eService.hasSavedPassword()) {
+          //     await E2eService.loadSavedPassword(userId);
+          // }
           
           this.backoffMs = 1000;
           this._connected = true;

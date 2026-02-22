@@ -99,8 +99,13 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
     >
       {/* Workspace Switcher */}
       <div className="px-4 py-3 flex items-center gap-2">
+        <img
+          src="/botschat-icon.svg"
+          alt="Stu"
+          className="w-6 h-6 rounded-md flex-shrink-0"
+        />
         <span className="text-[--text-sidebar-active] font-bold text-h2 truncate flex-1">
-          BotsChat
+          Stu
         </span>
         {onOpenSettings && (
           <button

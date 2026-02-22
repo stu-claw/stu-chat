@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "app.botschat.console",
-  appName: "BotsChat",
+  appName: "Stu",
   webDir: "packages/web/dist",
 
   // Allow the WebView to connect to the production API
@@ -14,7 +14,7 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     iosScheme: "https",
     // Allow mixed content & navigation to the API host
-    allowNavigation: ["console.botschat.app", "*.botschat.app"],
+    allowNavigation: ["stu.spencer-859.workers.dev", "console.botschat.app", "*.botschat.app"],
   },
 
   plugins: {

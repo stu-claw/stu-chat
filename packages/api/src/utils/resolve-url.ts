@@ -5,7 +5,7 @@ import type { Env } from "../env.js";
  *
  * Priority (highest → lowest reachability):
  *   1. Explicit `PUBLIC_URL` env var              — admin override wins
- *   2. Official CF deployment host                → https://console.botschat.app
+ *   2. Official CF deployment host                → https://stu.spencer-859.workers.dev
  *   3. Any *.workers.dev host                     → request origin
  *   4. Public hostname (not an IP, not localhost)  → request origin
  *   5. Public / non-RFC-1918 IP                   → request origin
@@ -30,13 +30,15 @@ export function resolveCloudUrl(
 
   // 2. Official Cloudflare deployment → canonical domain
   const OFFICIAL_HOSTS = [
+    "stu.spencer-859.workers.dev",
     "console.botschat.app",
+    "stu.app",
     "botschat-api.auxtenwpc.workers.dev",
     "botschat.app",
     "www.botschat.app",
   ];
   if (OFFICIAL_HOSTS.includes(host)) {
-    return { cloudUrl: "https://console.botschat.app", isLoopback: false };
+    return { cloudUrl: "https://stu.spencer-859.workers.dev", isLoopback: false };
   }
 
   // 3. Any *.workers.dev — it's a CF deployment, use its origin

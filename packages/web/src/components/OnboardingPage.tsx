@@ -90,7 +90,7 @@ export function OnboardingPage({ onSkip }: { onSkip: () => void }) {
 
   // Cloud URL — resolved by backend (smart priority), editable by user
   const [cloudUrl, setCloudUrl] = useState<string>(
-    typeof window !== "undefined" ? window.location.origin : "https://console.botschat.app",
+    typeof window !== "undefined" ? window.location.origin : "https://stu.spencer-859.workers.dev",
   );
   const [cloudUrlLoopback, setCloudUrlLoopback] = useState(false);
   const [cloudUrlHint, setCloudUrlHint] = useState<string | undefined>();
@@ -189,14 +189,13 @@ openclaw gateway restart`
       <div className="w-full max-w-xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <div
-            className="inline-flex items-center justify-center w-16 h-16 rounded-xl text-white text-2xl font-bold mb-4"
-            style={{ background: "#1264A3" }}
-          >
-            BC
-          </div>
+          <img
+            src="/botschat-icon.svg"
+            alt="Stu"
+            className="inline-block w-16 h-16 mb-4"
+          />
           <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Welcome to BotsChat!
+            Welcome to Stu!
           </h1>
           <p className="mt-2" style={{ color: "var(--text-secondary)" }}>
             Connect your OpenClaw agent to start chatting.
@@ -282,7 +281,7 @@ openclaw gateway restart`
                     <div className="mb-3 rounded-md overflow-hidden" style={{ border: "1px solid var(--border)" }}>
                       <img
                         src="/architecture.png"
-                        alt="BotsChat E2E Encryption Architecture"
+                        alt="Stu E2E Encryption Architecture"
                         className="w-full"
                         style={{ display: "block" }}
                       />

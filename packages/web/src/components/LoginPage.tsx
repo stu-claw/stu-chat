@@ -143,12 +143,12 @@ export function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <img
-            src="/botschat-logo.png"
-            alt="BotsChat"
+            src="/botschat-icon.svg"
+            alt="Stu"
             className="inline-block w-16 h-16 mb-4"
           />
           <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
-            BotsChat
+            Stu
           </h1>
           <p className="mt-2" style={{ color: "var(--text-secondary)" }}>
             Multi-channel AI chat powered by OpenClaw
