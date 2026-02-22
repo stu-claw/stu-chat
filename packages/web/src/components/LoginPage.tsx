@@ -143,15 +143,15 @@ export function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <img
-            src="/botschat-icon.svg"
+            src="/stu-logo.svg"
             alt="Stu"
             className="inline-block w-16 h-16 mb-4"
           />
           <h1 className="text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Stu
+            Maestro
           </h1>
           <p className="mt-2" style={{ color: "var(--text-secondary)" }}>
-            Multi-channel AI chat powered by OpenClaw
+            Multi-channel AI chat powered by Stu
           </p>
         </div>
 

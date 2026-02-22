@@ -1,7 +1,7 @@
 // Minimal service worker for PWA installability + Push notifications.
 // Caches the app shell on install for faster startup.
 
-const CACHE_NAME = "botschat-v1";
+const CACHE_NAME = "stu-v2";
 const SHELL_URLS = ["/"];
 
 self.addEventListener("install", (event) => {

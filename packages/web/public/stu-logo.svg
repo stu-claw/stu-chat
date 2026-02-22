@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#0B0E13"/>
+  <path d="M124 146h176c22.091 0 40 17.909 40 40v96c0 22.091-17.909 40-40 40H214l-60 44v-44h-30c-22.091 0-40-17.909-40-40v-96c0-22.091 17.909-40 40-40z" fill="#12161D"/>
+  <path d="M286 188h96c22.091 0 40 17.909 40 40v84c0 22.091-17.909 40-40 40h-18v38l-54-38h-24c-22.091 0-40-17.909-40-40v-84c0-22.091 17.909-40 40-40z" fill="#07090D"/>
+  <text x="206" y="266" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-weight="700" font-size="92" fill="#FFFFFF">STU</text>
+</svg>
