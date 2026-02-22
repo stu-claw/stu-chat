@@ -143,7 +143,7 @@ export function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <img
-            src="/stu-logo.svg"
+            src="/Stu-logo.png"
             alt="Stu"
             className="inline-block w-16 h-16 mb-4"
           />
