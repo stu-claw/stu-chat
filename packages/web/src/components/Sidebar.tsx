@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAppState, useAppDispatch } from "../store";
-import { agentsApi, channelsApi } from "../api";
+import { agentsApi, channelsApi, sessionsApi } from "../api";
 import { dlog } from "../debug-log";
 import { useIMEComposition } from "../hooks/useIMEComposition";
 
@@ -12,6 +12,17 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
   const [newDesc, setNewDesc] = useState("");
   const { onCompositionStart, onCompositionEnd, isIMEActive } = useIMEComposition();
   const [channelsExpanded, setChannelsExpanded] = useState(true);
+  const [channelSearch, setChannelSearch] = useState("");
+  const [sessionIndexLoading, setSessionIndexLoading] = useState(false);
+  const [sessionIndex, setSessionIndex] = useState<Array<{
+    agentId: string;
+    agentSessionKey: string;
+    channelId: string;
+    channelName: string;
+    sessionId: string;
+    sessionName: string;
+    searchText: string;
+  }>>([]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -89,8 +100,90 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
 
   // Split agents: default agent vs channel agents
   // Hide the auto-created "Default" channel (used only for cron import) from Messages view
-  const defaultAgents = state.agents.filter((a) => a.isDefault);
-  const channelAgents = state.agents.filter((a) => !a.isDefault && a.name !== "Default");
+  const defaultAgents = useMemo(
+    () => state.agents.filter((a) => a.isDefault),
+    [state.agents],
+  );
+  const channelAgents = useMemo(
+    () => state.agents.filter((a) => !a.isDefault && a.name !== "Default"),
+    [state.agents],
+  );
+
+  // Build an in-memory session index for keyword search across channels.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function buildSessionIndex() {
+      const agentsWithChannel = channelAgents.filter((a) => !!a.channelId);
+      if (agentsWithChannel.length === 0) {
+        setSessionIndex([]);
+        return;
+      }
+
+      setSessionIndexLoading(true);
+      const entries: Array<{
+        agentId: string;
+        agentSessionKey: string;
+        channelId: string;
+        channelName: string;
+        sessionId: string;
+        sessionName: string;
+        searchText: string;
+      }> = [];
+
+      const results = await Promise.allSettled(
+        agentsWithChannel.map(async (agent) => {
+          const channelId = agent.channelId as string;
+          const { sessions } = await sessionsApi.list(channelId);
+          return { agent, sessions };
+        }),
+      );
+
+      for (const result of results) {
+        if (result.status !== "fulfilled") continue;
+        const { agent, sessions } = result.value;
+        for (const session of sessions) {
+          entries.push({
+            agentId: agent.id,
+            agentSessionKey: agent.sessionKey,
+            channelId: agent.channelId as string,
+            channelName: agent.name,
+            sessionId: session.id,
+            sessionName: session.name,
+            searchText: `${agent.name} ${session.name}`.toLowerCase(),
+          });
+        }
+      }
+
+      if (!cancelled) {
+        setSessionIndex(entries);
+        setSessionIndexLoading(false);
+      }
+    }
+
+    buildSessionIndex().catch((err) => {
+      dlog.warn("Channel", `Failed to build session index: ${err}`);
+      if (!cancelled) setSessionIndexLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channelAgents]);
+
+  const normalizedSearch = channelSearch.trim().toLowerCase();
+  const isSearching = normalizedSearch.length > 0;
+  const filteredDefaultAgents = isSearching
+    ? defaultAgents.filter((a) => a.name.toLowerCase().includes(normalizedSearch))
+    : defaultAgents;
+  const filteredChannelAgents = isSearching
+    ? channelAgents.filter((a) => a.name.toLowerCase().includes(normalizedSearch))
+    : channelAgents;
+  const filteredSessions = isSearching
+    ? sessionIndex
+      .filter((s) => s.searchText.includes(normalizedSearch))
+      .slice(0, 20)
+    : [];
 
   return (
     <div
@@ -153,7 +246,18 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
         />
         {channelsExpanded && (
           <div>
-            {defaultAgents.map((a) => (
+            <div className="px-4 pb-2">
+              <input
+                type="text"
+                placeholder="Search channels or sessions"
+                value={channelSearch}
+                onChange={(e) => setChannelSearch(e.target.value)}
+                className="w-full px-2 py-1.5 text-caption text-[--text-sidebar] rounded-sm focus:outline-none placeholder:text-[--text-muted]"
+                style={{ background: "var(--sidebar-hover)", border: "1px solid var(--sidebar-border)" }}
+              />
+            </div>
+
+            {filteredDefaultAgents.map((a) => (
               <SidebarItem
                 key={a.id}
                 label={`# ${a.name}`}
@@ -161,7 +265,7 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
                 onClick={() => handleSelectAgent(a.id, a.sessionKey)}
               />
             ))}
-            {channelAgents.map((a) => (
+            {filteredChannelAgents.map((a) => (
               <SidebarItem
                 key={a.id}
                 label={`# ${a.name}`}
@@ -183,7 +287,40 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
                 }}
               />
             ))}
-            {channelAgents.length === 0 && defaultAgents.length === 0 && (
+
+            {isSearching && (
+              <div className="px-4 pt-2 pb-1">
+                <div className="text-tiny uppercase tracking-wider text-[--text-muted]">
+                  Sessions
+                </div>
+              </div>
+            )}
+            {isSearching && filteredSessions.map((s) => (
+              <SidebarItem
+                key={`${s.channelId}:${s.sessionId}`}
+                label={`${s.channelName} / ${s.sessionName}`}
+                active={state.selectedSessionId === s.sessionId}
+                onClick={() => {
+                  try {
+                    localStorage.setItem(`botschat_last_session_${s.channelId}`, s.sessionId);
+                  } catch { /* ignore */ }
+                  handleSelectAgent(s.agentId, s.agentSessionKey);
+                  setChannelSearch("");
+                }}
+              />
+            ))}
+            {isSearching && !sessionIndexLoading && filteredSessions.length === 0 && (
+              <div className="px-8 py-2 text-tiny text-[--text-muted]">
+                No sessions match "{channelSearch}"
+              </div>
+            )}
+            {isSearching && sessionIndexLoading && (
+              <div className="px-8 py-2 text-tiny text-[--text-muted]">
+                Indexing sessions…
+              </div>
+            )}
+
+            {filteredChannelAgents.length === 0 && filteredDefaultAgents.length === 0 && !isSearching && (
               <div className="px-8 py-2 text-tiny text-[--text-muted]">
                 Loading channels…
               </div>

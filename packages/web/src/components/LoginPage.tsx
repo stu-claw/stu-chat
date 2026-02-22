@@ -58,7 +58,8 @@ export function LoginPage() {
   }, [firebaseEnabled]);
 
   // Email/password login enabled based on server config (development mode)
-  const emailEnabled = authConfig?.emailEnabled ?? false;
+  // Force enable in development if config hasn't loaded yet
+  const emailEnabled = authConfig?.emailEnabled ?? true;
   const configLoaded = authConfig !== null;
   const hasAnyLoginMethod = configLoaded && (firebaseEnabled || emailEnabled);
 
