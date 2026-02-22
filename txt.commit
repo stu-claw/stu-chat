@@ -1,0 +1,6 @@
+git -C "workspace/botschat-control-hub" status --short
+git -C "workspace/botschat-control-hub" add "packages/web/src/components/LoginPage.tsx" "packages/web/public/stu-logo.svg"
+git -C "workspace/botschat-control-hub" commit -m "Rebrand login to Maestro and use Stu logo"
+git -C "workspace/botschat-control-hub" push
+
+
