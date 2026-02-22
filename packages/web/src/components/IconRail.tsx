@@ -1,5 +1,13 @@
 import React from "react";
-import { IconRail } from "./IconRail";
+import { useAppState, useAppDispatch, type ActiveView } from "../store";
+import { setToken, setRefreshToken } from "../api";
+import { dlog } from "../debug-log";
+
+export type IconRailProps = {
+  onToggleTheme: () => void;
+  onOpenSettings: () => void;
+  theme: "dark" | "light";
+};
 
 const DeckIcon = (
   <svg
@@ -207,8 +215,3 @@ function RailIcon({
     </div>
   );
 }
-
-import { useAppState, useAppDispatch, type ActiveView } from "../store";
-import { setToken, setRefreshToken } from "../api";
-import { dlog } from "../debug-log";
-import type { IconRailProps } from "./IconRail";

@@ -57,6 +57,11 @@ export type AppState = {
   selectedCronTaskId: string | null;
   cronJobs: Job[];
   selectedCronJobId: string | null;
+  // Deck view state
+  deckAgents: Array<{ id: string; name: string; icon: string; accent: string; context: string; model: string }>;
+  deckMessages: Record<string, Array<{ sender: "user" | "agent"; text: string; timestamp: number }>>;
+  activeDeckAgent: string | null;
+  deckConnected: boolean;
 };
 
 export const initialState: AppState = {

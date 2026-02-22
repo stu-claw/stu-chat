@@ -1,68 +1,190 @@
-import { Hono } from "hono";
-import type { Env } from "../env.js";
+import { Hono } from 'hono';
+import { agentRegistry } from '../agents/registry';
+import { logAggregator } from '../logs/aggregator';
+import type { Env } from '../env';
 
-/**
- * Agents API — OpenClaw-aligned first-level entity.
- * Returns the default agent (always) plus one agent per channel (default session = first adhoc task).
- */
-const agents = new Hono<{ Bindings: Env; Variables: { userId: string } }>();
+const app = new Hono<{ Bindings: Env }>();
 
-export type Agent = {
-  id: string;
-  name: string;
-  sessionKey: string;
-  isDefault: boolean;
-  channelId: string | null;
-};
-
-/** GET /api/agents — list agents: default + one per channel with default session */
-agents.get("/", async (c) => {
-  const userId = c.get("userId");
-
-  const list: Agent[] = [];
-
-  // 1. Channel-based agents (each channel = one agent, default session = first adhoc task)
-  const { results: channels } = await c.env.DB.prepare(
-    "SELECT id, name, openclaw_agent_id FROM channels WHERE user_id = ? ORDER BY created_at ASC",
-  )
-    .bind(userId)
-    .all<{ id: string; name: string; openclaw_agent_id: string }>();
-
-  // Find the "General" channel to associate with the default agent (for session support).
-  // If the user has created a "General" channel (auto-created on first session "+"),
-  // link it to the default agent so sessions work.
-  const generalChannel = (channels ?? []).find((ch) => ch.name === "General");
-
-  // Always show the "general" default agent for ad-hoc chat.
-  list.push({
-    id: "default",
-    name: "General",
-    sessionKey: `agent:main:botschat:${userId}:default`,
-    isDefault: true,
-    channelId: generalChannel?.id ?? null,
-  });
-
-  for (const ch of channels ?? []) {
-    // Skip the "General" channel — it's linked to the default agent above
-    if (generalChannel && ch.id === generalChannel.id) continue;
-    const task = await c.env.DB.prepare(
-      "SELECT session_key FROM tasks WHERE channel_id = ? AND kind = 'adhoc' AND session_key IS NOT NULL ORDER BY created_at ASC LIMIT 1",
-    )
-      .bind(ch.id)
-      .first<{ session_key: string }>();
-
-    const sessionKey =
-      task?.session_key ?? `agent:${ch.openclaw_agent_id}:botschat:${userId}:adhoc`;
-    list.push({
-      id: ch.id,
-      name: ch.name,
-      sessionKey,
-      isDefault: false,
-      channelId: ch.id,
-    });
+// GET /api/agents - List all active agents
+app.get('/', async (c) => {
+  try {
+    const agents = await agentRegistry.getActiveAgents();
+    return c.json({ agents });
+  } catch (err) {
+    console.error('[API] Error listing agents:', err);
+    return c.json({ error: 'Failed to list agents' }, 500);
   }
-
-  return c.json({ agents: list });
 });
 
-export { agents };
+// POST /api/agents - Register a new agent
+app.post('/', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { id, name, task, model, label, sessionKey, parentSessionId, metadata } = body;
+    
+    if (!id || !name || !task) {
+      return c.json({ error: 'Missing required fields: id, name, task' }, 400);
+    }
+    
+    const agent = await agentRegistry.register({
+      id,
+      name,
+      task,
+      model: model || 'unknown',
+      label: label || name,
+      sessionKey: sessionKey || '',
+      parentSessionId,
+      metadata,
+    });
+    
+    // Log the registration
+    await logAggregator.info(id, `Agent registered: ${name}`, { task, model });
+    
+    return c.json({ agent }, 201);
+  } catch (err) {
+    console.error('[API] Error registering agent:', err);
+    return c.json({ error: 'Failed to register agent' }, 500);
+  }
+});
+
+// GET /api/agents/:id - Get specific agent
+app.get('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const agent = await agentRegistry.getAgent(id);
+    
+    if (!agent) {
+      return c.json({ error: 'Agent not found' }, 404);
+    }
+    
+    return c.json({ agent });
+  } catch (err) {
+    console.error('[API] Error getting agent:', err);
+    return c.json({ error: 'Failed to get agent' }, 500);
+  }
+});
+
+// POST /api/agents/:id/heartbeat - Agent heartbeat
+app.post('/:id/heartbeat', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await agentRegistry.heartbeat(id);
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[API] Error processing heartbeat:', err);
+    return c.json({ error: 'Failed to process heartbeat' }, 500);
+  }
+});
+
+// POST /api/agents/:id/status - Update agent status
+app.post('/:id/status', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { status, metadata } = await c.req.json();
+    
+    await agentRegistry.updateStatus(id, status, metadata);
+    
+    // Log status change
+    await logAggregator.info(id, `Status changed to: ${status}`, metadata);
+    
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[API] Error updating status:', err);
+    return c.json({ error: 'Failed to update status' }, 500);
+  }
+});
+
+// POST /api/agents/:id/complete - Mark agent as completed
+app.post('/:id/complete', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { result } = await c.req.json();
+    
+    await agentRegistry.complete(id, result);
+    await logAggregator.result(id, 'Task completed', result);
+    
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[API] Error completing agent:', err);
+    return c.json({ error: 'Failed to complete agent' }, 500);
+  }
+});
+
+// POST /api/agents/:id/error - Mark agent as error
+app.post('/:id/error', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { error } = await c.req.json();
+    
+    await agentRegistry.error(id, error);
+    await logAggregator.error(id, error);
+    
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[API] Error setting agent error:', err);
+    return c.json({ error: 'Failed to set agent error' }, 500);
+  }
+});
+
+// DELETE /api/agents/:id - Unregister agent
+app.delete('/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await agentRegistry.unregister(id);
+    await logAggregator.clearLogs(id);
+    return c.json({ ok: true });
+  } catch (err) {
+    console.error('[API] Error unregistering agent:', err);
+    return c.json({ error: 'Failed to unregister agent' }, 500);
+  }
+});
+
+// GET /api/agents/:id/logs - Get agent logs
+app.get('/:id/logs', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const limit = parseInt(c.req.query('limit') || '100', 10);
+    
+    const logs = await logAggregator.getLogs(id, limit);
+    return c.json({ logs });
+  } catch (err) {
+    console.error('[API] Error getting logs:', err);
+    return c.json({ error: 'Failed to get logs' }, 500);
+  }
+});
+
+// POST /api/agents/:id/logs - Add log entry
+app.post('/:id/logs', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const { level, message, metadata, taskId } = await c.req.json();
+    
+    if (!level || !message) {
+      return c.json({ error: 'Missing required fields: level, message' }, 400);
+    }
+    
+    const log = await logAggregator.log(id, level, message, metadata, taskId);
+    return c.json({ log }, 201);
+  } catch (err) {
+    console.error('[API] Error adding log:', err);
+    return c.json({ error: 'Failed to add log' }, 500);
+  }
+});
+
+// GET /api/agents/stats/overview - Get registry stats
+app.get('/stats/overview', async (c) => {
+  try {
+    const registryStats = agentRegistry.getStats();
+    const logStats = logAggregator.getStats();
+    
+    return c.json({
+      registry: registryStats,
+      logs: logStats,
+    });
+  } catch (err) {
+    console.error('[API] Error getting stats:', err);
+    return c.json({ error: 'Failed to get stats' }, 500);
+  }
+});
+
+export default app;

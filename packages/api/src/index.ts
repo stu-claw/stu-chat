@@ -6,6 +6,8 @@ import { randomUUID } from "./utils/uuid.js";
 import { auth } from "./routes/auth.js";
 import { agents } from "./routes/agents.js";
 import { channels } from "./routes/channels.js";
+import { agentRegistry } from "./agents/registry.js";
+import { logAggregator } from "./logs/aggregator.js";
 import { tasks } from "./routes/tasks.js";
 import { jobs } from "./routes/jobs.js";
 import { models } from "./routes/models.js";
@@ -576,6 +578,75 @@ app.get("/api/messages/:userId", async (c) => {
   url.pathname = "/messages";
   // Forward query params (sessionKey, threadId, limit)
   return stub.fetch(new Request(url.toString()));
+});
+
+// ---- Agent/Deck WebSocket for log streaming ----
+// Browser clients connect to: /api/agents/ws
+// Receives real-time log updates from sub-agents
+app.all("/api/agents/ws", async (c) => {
+  const upgradeHeader = c.req.header("Upgrade");
+  if (upgradeHeader !== "websocket") {
+    return c.json({ error: "Expected WebSocket" }, 400);
+  }
+
+  const [clientWs, serverWs] = Object.values(new WebSocketPair());
+  
+  serverWs.accept();
+  console.log("[AgentWS] Client connected to log stream");
+
+  // Send current active agents on connect
+  const activeAgents = await agentRegistry.getActiveAgents();
+  serverWs.send(JSON.stringify({
+    type: "agents:list",
+    agents: activeAgents,
+  }));
+
+  // Subscribe to all logs
+  const unsubscribe = logAggregator.subscribeAll((log) => {
+    try {
+      serverWs.send(JSON.stringify({
+        type: "log",
+        log,
+      }));
+    } catch (err) {
+      console.error("[AgentWS] Failed to send log:", err);
+    }
+  });
+
+  // Handle client messages (subscribe to specific agents)
+  serverWs.addEventListener("message", async (event) => {
+    try {
+      const data = JSON.parse(event.data as string);
+      
+      if (data.type === "subscribe" && data.agentId) {
+        // Client wants to subscribe to specific agent
+        const agent = await agentRegistry.getAgent(data.agentId);
+        if (agent) {
+          // Send recent logs for this agent
+          const logs = await logAggregator.getLogs(data.agentId, 50);
+          serverWs.send(JSON.stringify({
+            type: "logs:history",
+            agentId: data.agentId,
+            logs,
+          }));
+        }
+      }
+      
+      if (data.type === "heartbeat") {
+        serverWs.send(JSON.stringify({ type: "pong" }));
+      }
+    } catch (err) {
+      console.error("[AgentWS] Message handling error:", err);
+    }
+  });
+
+  // Cleanup on close
+  serverWs.addEventListener("close", () => {
+    console.log("[AgentWS] Client disconnected");
+    unsubscribe();
+  });
+
+  return new Response(null, { status: 101, webSocket: clientWs });
 });
 
 // ---- Plugin upload (pairing token auth) ----
