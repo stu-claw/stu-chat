@@ -1,13 +1,22 @@
 import React from "react";
-import { useAppState, useAppDispatch, type ActiveView } from "../store";
-import { setToken, setRefreshToken } from "../api";
-import { dlog } from "../debug-log";
+import { IconRail } from "./IconRail";
 
-type IconRailProps = {
-  onToggleTheme: () => void;
-  onOpenSettings: () => void;
-  theme: "dark" | "light";
-};
+const DeckIcon = (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    viewBox="0 0 24 24"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3" y="3" width="7" height="7" rx="1" ry="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" ry="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" ry="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" ry="1" />
+  </svg>
+);
 
 export function IconRail({ onToggleTheme, onOpenSettings, theme }: IconRailProps) {
   const state = useAppState();
@@ -15,14 +24,14 @@ export function IconRail({ onToggleTheme, onOpenSettings, theme }: IconRailProps
   const [showUserMenu, setShowUserMenu] = React.useState(false);
 
   const handleLogout = () => {
-    dlog.info("Auth", `Logout — user ${state.user?.email}`);
+    dlog.info("Auth", `Logout 	6 user ${state.user?.email}`);
     setToken(null);
     setRefreshToken(null);
     dispatch({ type: "LOGOUT" });
   };
 
   const setView = (view: ActiveView) => {
-    dlog.info("Nav", `Switch view → ${view}`);
+    dlog.info("Nav", `Switch view 1 6 view`);
     dispatch({ type: "SET_ACTIVE_VIEW", view });
   };
 
@@ -40,7 +49,7 @@ export function IconRail({ onToggleTheme, onOpenSettings, theme }: IconRailProps
         className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden hover:rounded-xl transition-all"
         title="Stu"
       >
-        <img src="/botschat-icon.svg" alt="Stu" className="w-8 h-8" />
+        <img src="/stu-logo.svg" alt="Stu" className="w-8 h-8" />
       </button>
 
       <div className="w-7 border-t my-1" style={{ borderColor: "var(--sidebar-divider)" }} />
@@ -67,6 +76,14 @@ export function IconRail({ onToggleTheme, onOpenSettings, theme }: IconRailProps
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         }
+      />
+
+      {/* Deck icon (new, between Automations and flex-1 spacer) */}
+      <RailIcon
+        label="Deck"
+        active={state.activeView === "deck"}
+        onClick={() => setView("deck")}
+        icon={DeckIcon}
       />
 
       <div className="flex-1" />
@@ -190,3 +207,8 @@ function RailIcon({
     </div>
   );
 }
+
+import { useAppState, useAppDispatch, type ActiveView } from "../store";
+import { setToken, setRefreshToken } from "../api";
+import { dlog } from "../debug-log";
+import type { IconRailProps } from "./IconRail";

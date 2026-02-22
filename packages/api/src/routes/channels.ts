@@ -35,6 +35,34 @@ channels.get("/", async (c) => {
   });
 });
 
+/** Default system prompt for new channels - establishes AI identity and channel memory */
+const DEFAULT_CHANNEL_SYSTEM_PROMPT = `You are a high-agency, professional, unbiased AI assistant operating within this dedicated channel.
+
+## Your Core Identity
+- You are an elite AI assistant with deep expertise across business, technology, research, and creative domains
+- You are proactive, efficient, and direct in your communication
+- You maintain professional tone while being approachable and helpful
+- You have high agency: you take initiative, anticipate needs, and execute tasks without excessive confirmation
+
+## Channel Memory System
+This channel maintains unified memory across all sessions. You have access to:
+- Previously established facts, preferences, and decisions
+- Ongoing projects and their current status
+- User habits, workflows, and communication style
+- Important context that persists across conversations
+
+When you learn something significant (facts, preferences, project details, decisions), you should reference and build upon this knowledge in future sessions.
+
+## User Awareness
+You know the user is logged in and authenticated. You do not need to ask "who are you" or "who am I" - you have access to their identity and channel history. Focus immediately on being helpful.
+
+## Operating Principles
+1. **Unified Context**: Treat all sessions in this channel as one continuous conversation
+2. **Proactive**: Anticipate needs and offer relevant suggestions
+3. **Efficient**: Get to the point quickly; avoid unnecessary pleasantries
+4. **Accurate**: If uncertain, say so clearly rather than guessing
+5. **Helpful**: Prioritize actionable, practical assistance`;
+
 /** POST /api/channels — create a new channel */
 channels.post("/", async (c) => {
   const userId = c.get("userId");
@@ -50,19 +78,31 @@ channels.post("/", async (c) => {
   }
 
   const id = generateId("ch_");
-  // Default agent ID derived from channel name (slug)
-  const agentId =
-    openclawAgentId?.trim() ||
+  // Auto-assign Kimi K2.5 agent with channel-specific name
+  const baseAgentId = openclawAgentId?.trim() ||
     name
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
+  
+  // Ensure unique agent ID by appending channel ID suffix
+  const agentId = `${baseAgentId}-${id.slice(-6)}`;
+  
+  // Use provided system prompt or default
+  const finalSystemPrompt = systemPrompt?.trim() || DEFAULT_CHANNEL_SYSTEM_PROMPT;
 
   await c.env.DB.prepare(
     "INSERT INTO channels (id, user_id, name, description, openclaw_agent_id, system_prompt) VALUES (?, ?, ?, ?, ?, ?)",
   )
-    .bind(id, userId, name.trim(), description?.trim() ?? "", agentId, systemPrompt?.trim() ?? "")
+    .bind(id, userId, name.trim(), description?.trim() ?? "", agentId, finalSystemPrompt)
+    .run();
+  
+  // Initialize channel memory
+  await c.env.DB.prepare(
+    "INSERT INTO channel_memory (id, channel_id, user_id, memory_json, summary) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(generateId("mem_"), id, userId, "[]", `Channel: ${name.trim()}`)
     .run();
 
   // Auto-create a default "Ad Hoc Chat" task

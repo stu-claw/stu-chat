@@ -71,10 +71,6 @@ auth.post("/register", async (c) => {
   if (password.length > 256) {
     return c.json({ error: "Password must not exceed 256 characters" }, 400);
   }
-  if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-    return c.json({ error: "Password must contain both letters and numbers" }, 400);
-  }
-
   const id = generateId("u_");
   const passwordHash = await hashPassword(password);
 

@@ -89,7 +89,7 @@ export function LoginPage() {
       setError("Password must be at least 8 characters");
       return;
     }
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    if (isRegister && (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password))) {
       setError("Password must contain both letters and numbers");
       return;
     }
@@ -163,7 +163,7 @@ export function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <img
-            src="/Stu-logo.png"
+            src="/stu-logo.svg"
             alt="Stu"
             className="inline-block w-16 h-16 mb-4"
           />

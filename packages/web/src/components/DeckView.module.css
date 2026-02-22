@@ -1,0 +1,115 @@
+.deck {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.columns {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 1px;
+  background-color: var(--border);
+}
+
+.column {
+  flex: 1;
+  min-width: 320px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+.columnHeader {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-surface);
+}
+
+.columnIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  margin-right: 12px;
+}
+
+.columnName {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+
+.messageUser {
+  background-color: var(--bg-active);
+  border-color: var(--border-active);
+}
+
+.inputArea {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  background-color: var(--bg-surface);
+}
+
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  resize: none;
+  min-height: 80px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--border-active);
+}
+
+.sendButton {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  background-color: var(--bg-active);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  float: right;
+}
+
+.sendButton:hover {
+  background-color: var(--bg-hover);
+}

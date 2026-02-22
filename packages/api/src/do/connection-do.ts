@@ -527,12 +527,17 @@ export class ConnectionDO implements DurableObject {
       await this.maybeAutoRenameSession(msg.sessionKey as string, msg.text as string);
     }
 
+    // Enrich message with channel memory for unified context across sessions
+    const sessionKey = msg.sessionKey as string | undefined;
+    const channelMemory = msg.type === "user.message" 
+      ? await this.getChannelMemoryForSession(sessionKey)
+      : null;
+
     // Forward user messages to OpenClaw
     const openclawWs = this.getOpenClawSocket();
     if (openclawWs) {
       // If this is a thread message, look up the parent message and attach it
       // so the plugin can inject the thread-origin context into the AI conversation.
-      const sessionKey = msg.sessionKey as string | undefined;
       const threadMatch = sessionKey?.match(/:thread:(.+)$/);
       let enrichedMsg = msg;
       if (threadMatch) {
@@ -557,6 +562,15 @@ export class ConnectionDO implements DurableObject {
           console.error(`[DO] Failed to fetch parent message for thread ${parentId}:`, err);
         }
       }
+      
+      // Inject channel memory context if available
+      if (channelMemory) {
+        enrichedMsg = {
+          ...enrichedMsg,
+          channelContext: channelMemory,
+        };
+      }
+      
       openclawWs.send(JSON.stringify(enrichedMsg));
     } else {
       ws.send(

@@ -21,7 +21,7 @@ export type ChatMessage = {
   mediaEncrypted?: boolean;
 };
 
-export type ActiveView = "messages" | "automations";
+export type ActiveView = "messages" | "automations" | "deck";
 
 export type AppState = {
   user: { id: string; email: string; displayName?: string | null } | null;
@@ -89,6 +89,12 @@ export const initialState: AppState = {
   selectedCronTaskId: null,
   cronJobs: [],
   selectedCronJobId: null,
+
+  // Deck state
+  deckAgents: [],
+  deckMessages: {},
+  activeDeckAgent: null,
+  deckConnected: false,
 };
 
 export type AppAction =

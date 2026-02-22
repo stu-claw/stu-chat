@@ -246,6 +246,96 @@ protectedApp.get("/tasks", async (c) => {
   });
 });
 
+// Session search across channel name, session name, and message/thread text.
+protectedApp.get("/search/sessions", async (c) => {
+  const userId = c.get("userId");
+  const rawQ = (c.req.query("q") ?? "").trim();
+  if (!rawQ) return c.json({ results: [] });
+
+  const q = rawQ.toLowerCase().slice(0, 100);
+  const escapedLike = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+
+  const { results } = await c.env.DB.prepare(
+    `SELECT
+        s.id AS session_id,
+        s.name AS session_name,
+        s.session_key AS session_key,
+        ch.id AS channel_id,
+        ch.name AS channel_name,
+        (
+          SELECT m.thread_id
+          FROM messages m
+          WHERE m.user_id = s.user_id
+            AND (
+              m.session_key = s.session_key
+              OR (
+                m.session_key >= (s.session_key || ':thread:')
+                AND m.session_key < (s.session_key || ':thread;')
+              )
+            )
+            AND m.text IS NOT NULL
+            AND m.encrypted = 0
+            AND instr(lower(CAST(m.text AS TEXT)), ?) > 0
+            AND m.thread_id IS NOT NULL
+          ORDER BY m.created_at DESC
+          LIMIT 1
+        ) AS matched_thread_id,
+        s.updated_at AS updated_at
+      FROM sessions s
+      JOIN channels ch ON ch.id = s.channel_id
+      WHERE s.user_id = ?
+        AND (
+          lower(ch.name) LIKE ? ESCAPE '\\'
+          OR lower(s.name) LIKE ? ESCAPE '\\'
+          OR EXISTS (
+            SELECT 1
+            FROM messages m
+            WHERE m.user_id = s.user_id
+              AND (
+                m.session_key = s.session_key
+                OR (
+                  m.session_key >= (s.session_key || ':thread:')
+                  AND m.session_key < (s.session_key || ':thread;')
+                )
+              )
+              AND m.text IS NOT NULL
+              AND m.encrypted = 0
+              AND instr(lower(CAST(m.text AS TEXT)), ?) > 0
+          )
+        )
+      ORDER BY
+        CASE
+          WHEN lower(s.name) LIKE ? ESCAPE '\\' THEN 0
+          WHEN lower(ch.name) LIKE ? ESCAPE '\\' THEN 1
+          ELSE 2
+        END,
+        s.updated_at DESC
+      LIMIT 50`,
+  )
+    .bind(q, userId, escapedLike, escapedLike, q, escapedLike, escapedLike)
+    .all<{
+      session_id: string;
+      session_name: string;
+      session_key: string;
+      channel_id: string;
+      channel_name: string;
+      matched_thread_id: string | null;
+      updated_at: number;
+    }>();
+
+  return c.json({
+    results: (results ?? []).map((r) => ({
+      channelId: r.channel_id,
+      channelName: r.channel_name,
+      sessionId: r.session_id,
+      sessionName: r.session_name,
+      sessionKey: r.session_key,
+      threadId: r.matched_thread_id ?? undefined,
+      updatedAt: r.updated_at,
+    })),
+  });
+});
+
 // Top-level job listing for a task (for Automations view)
 protectedApp.get("/tasks/:taskId/jobs", async (c) => {
   const userId = c.get("userId");

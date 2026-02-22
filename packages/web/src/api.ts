@@ -207,9 +207,21 @@ export type Session = {
   updatedAt: number;
 };
 
+export type SessionSearchResult = {
+  channelId: string;
+  channelName: string;
+  sessionId: string;
+  sessionName: string;
+  sessionKey: string;
+  threadId?: string;
+  updatedAt: number;
+};
+
 export const sessionsApi = {
   list: (channelId: string) =>
     request<{ sessions: Session[] }>("GET", `/channels/${channelId}/sessions`),
+  search: (q: string) =>
+    request<{ results: SessionSearchResult[] }>("GET", `/search/sessions?q=${encodeURIComponent(q)}`),
   create: (channelId: string, name?: string) =>
     request<Session>("POST", `/channels/${channelId}/sessions`, { name }),
   rename: (channelId: string, sessionId: string, name: string) =>

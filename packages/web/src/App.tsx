@@ -17,6 +17,7 @@ import { initPushNotifications, getPendingPushNav, clearPendingPushNav, notifyIf
 import { setupForegroundDetection, sendFocusUpdate } from "./foreground";
 import { IconRail } from "./components/IconRail";
 import { Sidebar } from "./components/Sidebar";
+import { DeckView } from "./components/DeckView";
 import { ChatWindow } from "./components/ChatWindow";
 import { ThreadPanel } from "./components/ThreadPanel";
 import { JobList } from "./components/JobList";
@@ -1074,6 +1075,7 @@ export default function App() {
   const hasSession = Boolean(state.selectedSessionKey);
 
   const isAutomationsView = state.activeView === "automations";
+const isDeckView = state.activeView === "deck";
 
   // ---- Mobile layout ----
   if (isMobile) {
@@ -1114,14 +1116,27 @@ export default function App() {
             >
               {/* Sidebar panel */}
               <Panel id="sidebar" defaultSize="15%" minSize="5%" maxSize="30%">
-                {isAutomationsView ? <CronSidebar /> : <Sidebar />}
+                {isDeckView ? (
+                  <div className="flex flex-col h-full p-3" style={{ background: "var(--bg-surface)" }}>
+                    <h3 className="text-caption font-bold mb-2" style={{ color: "var(--text-primary)" }}>Deck Agents</h3>
+                    <p className="text-small" style={{ color: "var(--text-muted)" }}>
+                      Multi-agent chat interface
+                    </p>
+                  </div>
+                ) : isAutomationsView ? (
+                  <CronSidebar />
+                ) : (
+                  <Sidebar />
+                )}
               </Panel>
 
               <ResizeHandle />
 
               {/* Main content panel */}
               <Panel id="content">
-                {isAutomationsView ? (
+                {isDeckView ? (
+                  <DeckView />
+                ) : isAutomationsView ? (
                   <CronDetail />
                 ) : (
                   <div className="flex-1 flex flex-col min-w-0 h-full">

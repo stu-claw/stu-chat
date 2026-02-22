@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAppState, useAppDispatch } from "../store";
-import { agentsApi, channelsApi, sessionsApi } from "../api";
+import { agentsApi, channelsApi, sessionsApi, type SessionSearchResult } from "../api";
 import { dlog } from "../debug-log";
 import { useIMEComposition } from "../hooks/useIMEComposition";
 
@@ -13,16 +13,8 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
   const { onCompositionStart, onCompositionEnd, isIMEActive } = useIMEComposition();
   const [channelsExpanded, setChannelsExpanded] = useState(true);
   const [channelSearch, setChannelSearch] = useState("");
-  const [sessionIndexLoading, setSessionIndexLoading] = useState(false);
-  const [sessionIndex, setSessionIndex] = useState<Array<{
-    agentId: string;
-    agentSessionKey: string;
-    channelId: string;
-    channelName: string;
-    sessionId: string;
-    sessionName: string;
-    searchText: string;
-  }>>([]);
+  const [sessionSearchLoading, setSessionSearchLoading] = useState(false);
+  const [sessionSearchResults, setSessionSearchResults] = useState<SessionSearchResult[]>([]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -108,82 +100,49 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
     () => state.agents.filter((a) => !a.isDefault && a.name !== "Default"),
     [state.agents],
   );
+  const normalizedSearch = channelSearch.trim().toLowerCase();
+  const isSearching = normalizedSearch.length > 0;
 
-  // Build an in-memory session index for keyword search across channels.
+  // Search sessions by channel/session names and message/thread text.
   useEffect(() => {
     let cancelled = false;
-
-    async function buildSessionIndex() {
-      const agentsWithChannel = channelAgents.filter((a) => !!a.channelId);
-      if (agentsWithChannel.length === 0) {
-        setSessionIndex([]);
-        return;
-      }
-
-      setSessionIndexLoading(true);
-      const entries: Array<{
-        agentId: string;
-        agentSessionKey: string;
-        channelId: string;
-        channelName: string;
-        sessionId: string;
-        sessionName: string;
-        searchText: string;
-      }> = [];
-
-      const results = await Promise.allSettled(
-        agentsWithChannel.map(async (agent) => {
-          const channelId = agent.channelId as string;
-          const { sessions } = await sessionsApi.list(channelId);
-          return { agent, sessions };
-        }),
-      );
-
-      for (const result of results) {
-        if (result.status !== "fulfilled") continue;
-        const { agent, sessions } = result.value;
-        for (const session of sessions) {
-          entries.push({
-            agentId: agent.id,
-            agentSessionKey: agent.sessionKey,
-            channelId: agent.channelId as string,
-            channelName: agent.name,
-            sessionId: session.id,
-            sessionName: session.name,
-            searchText: `${agent.name} ${session.name}`.toLowerCase(),
-          });
-        }
-      }
-
-      if (!cancelled) {
-        setSessionIndex(entries);
-        setSessionIndexLoading(false);
-      }
+    if (!normalizedSearch) {
+      setSessionSearchResults([]);
+      setSessionSearchLoading(false);
+      return;
     }
 
-    buildSessionIndex().catch((err) => {
-      dlog.warn("Channel", `Failed to build session index: ${err}`);
-      if (!cancelled) setSessionIndexLoading(false);
-    });
+    setSessionSearchLoading(true);
+    const timer = window.setTimeout(() => {
+      sessionsApi.search(normalizedSearch)
+        .then(({ results }) => {
+          if (!cancelled) {
+            setSessionSearchResults(results);
+            setSessionSearchLoading(false);
+          }
+        })
+        .catch((err) => {
+          dlog.warn("Channel", `Session search failed: ${err}`);
+          if (!cancelled) {
+            setSessionSearchResults([]);
+            setSessionSearchLoading(false);
+          }
+        });
+    }, 180);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [channelAgents]);
+  }, [normalizedSearch]);
 
-  const normalizedSearch = channelSearch.trim().toLowerCase();
-  const isSearching = normalizedSearch.length > 0;
   const filteredDefaultAgents = isSearching
     ? defaultAgents.filter((a) => a.name.toLowerCase().includes(normalizedSearch))
     : defaultAgents;
   const filteredChannelAgents = isSearching
     ? channelAgents.filter((a) => a.name.toLowerCase().includes(normalizedSearch))
     : channelAgents;
-  const filteredSessions = isSearching
-    ? sessionIndex
-      .filter((s) => s.searchText.includes(normalizedSearch))
-      .slice(0, 20)
-    : [];
+  const filteredSessions = isSearching ? sessionSearchResults.slice(0, 20) : [];
 
   return (
     <div
@@ -301,22 +260,42 @@ export function Sidebar({ onOpenSettings, onNavigate }: { onOpenSettings?: () =>
                 label={`${s.channelName} / ${s.sessionName}`}
                 active={state.selectedSessionId === s.sessionId}
                 onClick={() => {
+                  const agent = state.agents.find((a) => a.channelId === s.channelId);
+                  if (!agent) return;
                   try {
                     localStorage.setItem(`botschat_last_session_${s.channelId}`, s.sessionId);
                   } catch { /* ignore */ }
-                  handleSelectAgent(s.agentId, s.agentSessionKey);
+                  dispatch({ type: "SET_ACTIVE_VIEW", view: "messages" });
+                  if (state.selectedAgentId !== agent.id) {
+                    dispatch({
+                      type: "SELECT_AGENT",
+                      agentId: agent.id,
+                      sessionKey: s.sessionKey,
+                    });
+                  }
+                  dispatch({
+                    type: "SELECT_SESSION",
+                    sessionId: s.sessionId,
+                    sessionKey: s.sessionKey,
+                  });
+                  if (s.threadId) {
+                    dispatch({ type: "OPEN_THREAD", threadId: s.threadId, messages: [] });
+                  } else {
+                    dispatch({ type: "CLOSE_THREAD" });
+                  }
+                  onNavigate?.();
                   setChannelSearch("");
                 }}
               />
             ))}
-            {isSearching && !sessionIndexLoading && filteredSessions.length === 0 && (
+            {isSearching && !sessionSearchLoading && filteredSessions.length === 0 && (
               <div className="px-8 py-2 text-tiny text-[--text-muted]">
                 No sessions match "{channelSearch}"
               </div>
             )}
-            {isSearching && sessionIndexLoading && (
+            {isSearching && sessionSearchLoading && (
               <div className="px-8 py-2 text-tiny text-[--text-muted]">
-                Indexing sessions…
+                Searching sessions…
               </div>
             )}
 
